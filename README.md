@@ -129,49 +129,35 @@ need a new build.
 - Xcode 15 or later to build
 - An Apple ID for code signing — a free account is sufficient
 
-## Installation
+## Installing it
 
-### Windows
+**Download this repository** (green **Code** button → **Download ZIP**), extract it, and
+**double-click `SlimRead.bat`**.
 
-No Mac required. **Double-click `SlimRead.bat`.**
+That is the whole thing. No GitHub account, no developer tools, no building. The script
+downloads the finished app, checks the two Apple components it needs, opens Sideloadly for
+you, and walks you through the last two settings on the phone. It stops and explains itself
+if anything goes wrong rather than closing.
 
-It does the whole chain: unblocks the downloaded files, installs winget if it is missing,
-installs Git and the GitHub CLI, signs you in to GitHub, creates or updates the repository,
-builds on a free GitHub macOS runner, downloads the IPA, checks the Apple drivers Sideloadly
-needs, and prints the on-phone steps.
+You will need your iPhone, a data cable, and an Apple ID. A spare Apple ID is fine and is the
+safer choice.
 
-It is safe to run repeatedly — it detects what is already done and continues from there.
-Run it again whenever you change the code, or when the 7-day certificate expires.
+### Why it isn't just a download
 
-The window never closes on an error. Every failure prints what happened and how to fix it.
+Apple requires apps installed outside the App Store to be signed with **the installing
+person's own Apple ID**. Nobody can hand you a ready-to-run copy — not the author, not
+anyone. That is why Sideloadly and your Apple ID are in the loop, and it is the same for
+every sideloaded iOS app.
 
-You will need a free [GitHub account](https://github.com/signup). When asked about
-repository visibility choose **public** — public repos get unlimited macOS build minutes,
-private ones bill at a 10x multiplier.
+Two consequences:
 
-Then, once it has produced `SlimRead.ipa`:
+- **The app stops opening after 7 days.** That is the free Apple certificate expiring, not a
+  fault. Run `SlimRead.bat` again to renew — logins and reading position survive.
+- **Developer Mode must be enabled** and left on. It does not disable code signing,
+  sandboxing or encryption. See [Troubleshooting](#troubleshooting).
 
-1. Install [Sideloadly](https://sideloadly.io), plus iTunes and iCloud **from apple.com,
-   not the Microsoft Store** — Store builds ship different drivers and your phone will not
-   appear in the device list.
-2. Connect the iPhone with a data cable, unlock, tap **Trust This Computer**.
-3. In Sideloadly: select the device, drag the IPA in, enter your Apple ID, press **Start**.
-4. On the phone: **Settings → Privacy & Security → Developer Mode** → on → restart, then
-   confirm after unlocking.
-5. **Settings → General → VPN & Device Management** → your Apple ID → **Trust**.
-
-Full detail on each of these, including what to do when they go wrong, is in
-[Troubleshooting](#troubleshooting).
-
-### macOS
-
-1. Open `SlimRead.xcodeproj`.
-2. Select the **SlimRead** target → **Signing & Capabilities**.
-3. Set **Team** to your Apple ID and change the bundle identifier from `com.example.slimread`
-   to something unique.
-4. Select your device and run (⌘R).
-5. On first launch, trust the certificate under **Settings → General → VPN & Device
-   Management**.
+[AltStore](https://altstore.io) removes the weekly renewal by re-signing automatically over
+Wi-Fi. Optional, and worth it if the reminder gets tiresome.
 
 ## Updating
 
@@ -186,27 +172,53 @@ and site logins survive.
 
 *From the phone:* run the **Publish release** workflow (Actions → Publish release → enter a
 version). It builds the app, attaches the IPA to a GitHub Release, and updates
-[`source.json`](source.json). Add that file's raw URL as a source in
 [AltStore](https://altstore.io) or [SideStore](https://sidestore.io):
 
 ```
-https://raw.githubusercontent.com/llllllllllllllppppppppppp/slimread/main/source.json
 ```
 
 Updates then appear in AltStore on the phone and install with one tap, no cable. AltStore
 also re-signs automatically over Wi-Fi before the certificate expires, which removes the
 weekly Sideloadly step.
 
-## Configuration
+## For the maintainer
 
-All of the following are in `BrowserViewController.swift`:
+Everyone below this line is building the app rather than using it.
+
+### Publishing changes
+
+**Double-click `Publish Update.bat`.** It installs Git and the GitHub CLI if needed, signs
+you in, pushes your changes, and offers to publish a new build.
+
+The important distinction:
+
+| Changed | What to do | Reaches users |
+|---|---|---|
+| `tweaks/tweaks.css` or `tweaks/tweaks.js` | Push. That is all. | Next time they open the app |
+| Swift source, Info.plist, the icon | Push **and** publish a release | Next time they run `SlimRead.bat` |
+
+Publishing a release builds on a GitHub macOS runner and attaches `SlimRead.ipa` to a GitHub
+Release. `SlimRead.bat` always downloads from `releases/latest`, so users need no account and
+no instructions beyond "run the file".
+
+### Configuration
 
 | Setting | Location |
 |---|---|
-| Start page | `homeURL` |
-| Control bar auto-hide delay | `autoHideDelay` |
-| Which buttons appear | `wireControls()` — one line per button |
+| Start page | `homeURL` in `BrowserViewController.swift` |
+| Control bar auto-hide delay | `autoHideDelay`, same file |
+| Which buttons appear | `wireControls()`, one line per button |
 | Default full-bleed behaviour | the `fullBleed` default in `init()` |
+| Where tweaks are fetched from | `baseURL` in `TweaksLoader.swift` |
+| Where the installer downloads from | `$Owner` / `$Repo` at the top of `SlimRead.ps1` |
+
+If you fork this, change the last two — otherwise your users pull from the original
+repository rather than yours.
+
+### Building on macOS
+
+Open `SlimRead.xcodeproj`, set your team under **Signing & Capabilities**, change the bundle
+identifier from `com.example.slimread`, and run.
 
 ## Limitations
 
@@ -224,8 +236,9 @@ All of the following are in `BrowserViewController.swift`:
 ## Project layout
 
 ```
-SlimRead.bat                      double-click this - runs everything
-SlimRead.ps1                      what it runs
+SlimRead.bat / SlimRead.ps1       what a user runs - downloads and installs the app
+Publish Update.bat                what the maintainer runs - push and release
+Publish-Update.ps1
 SlimRead/
   AppDelegate.swift               window and root view controller
   BrowserViewController.swift     web view, status bar overrides, gestures, tweak injection
@@ -237,10 +250,9 @@ SlimRead/
 tweaks/
   tweaks.css                      live layout rules
   tweaks.js                       live behaviour: image loading, bottom-bar hiding
-source.json                       AltStore/SideStore update manifest
 .github/workflows/
   build-ipa.yml                   build and upload an IPA artifact
-  release-ipa.yml                 publish a GitHub Release and refresh source.json
+  release-ipa.yml                 publish a GitHub Release for users to download
 ```
 
 ## Scope
