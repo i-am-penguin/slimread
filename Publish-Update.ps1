@@ -62,8 +62,132 @@ if ($LASTEXITCODE -ne 0) {
     Stop-With 'Not signed in to GitHub' @('Run: gh auth login --web', 'Choose HTTPS when asked about the Git protocol.')
 }
 
+# Writes the version marker into tweaks/tweaks.js, so the badge on the phone always
+# reports what was actually published. Doing this by hand means forgetting it, and a
+# forgotten bump reads exactly like an update that failed to arrive.
+function Set-TweaksStamp {
+    param([string]$AppVersion)
+
+    $path = Join-Path $ProjectDir 'tweaks\tweaks.js'
+    if (-not (Test-Path $path)) { return $null }
+
+    $text = Get-Content $path -Raw
+    $pattern = "(?m)^(\s*var TWEAKS_VERSION\s*=\s*')([^']*)('\s*;.*)$"
+    $match = [regex]::Match($text, $pattern)
+    if (-not $match.Success) {
+        Say 'could not find TWEAKS_VERSION in tweaks/tweaks.js - badge not stamped' Yellow
+        return $null
+    }
+
+    # Carry the build counter forward so every publish differs, even two in one minute
+    # with no version change.
+    $counter = 1
+    if ($match.Groups[2].Value -match 'b(\d+)') { $counter = [int]$Matches[1] + 1 }
+
+    $stamp = "$AppVersion b$counter " + (Get-Date -Format 'dd MMM HH:mm')
+
+    # This lands inside a single-quoted JS string. A stray quote or backslash in a
+    # typed version number would break the whole tweaks file for every installed copy.
+    $stamp = ($stamp -replace "[^A-Za-z0-9 ._:-]", '')
+
+    $updated = [regex]::Replace($text, $pattern, "`${1}$stamp`${3}")
+
+    # WriteAllText, not Set-Content: PowerShell 5.1 writes a BOM for -Encoding utf8,
+    # and this file is fetched and parsed as raw JS.
+    [System.IO.File]::WriteAllText($path, $updated, (New-Object System.Text.UTF8Encoding($false)))
+    return $stamp
+}
+
+# Builds the commit message from what is actually staged, so publishing never stops to
+# ask. Typing one every time meant taking the default, and a history of identical
+# "SlimRead update" lines is no history at all.
+function New-CommitMessage {
+    param([string]$Version, [string]$Stamp)
+
+    $files = @(& git diff --cached --name-only 2>$null | Where-Object { $_ })
+    $when = Get-Date -Format 'dd MMM HH:mm'
+
+    if (-not $files.Count) { return "No file changes - $when" }
+
+    $areas = @()
+    if ($files -like 'tweaks/*')                                 { $areas += 'tweaks' }
+    if ($files -like '*.swift')                                  { $areas += 'app' }
+    if (($files -like '*.plist') -or ($files -like '*.pbxproj')) { $areas += 'project' }
+    if ($files -like '.github/*')                                { $areas += 'ci' }
+    if (($files -like '*.ps1') -or ($files -like '*.bat'))       { $areas += 'scripts' }
+    if ($files -like '*.md')                                     { $areas += 'docs' }
+
+    $what  = if ($areas.Count) { $areas -join ', ' } else { 'files' }
+    $count = "$($files.Count) file" + $(if ($files.Count -ne 1) { 's' } else { '' })
+
+    # The version number goes in either way, so `git log` alone tells you which build
+    # each change belongs to.
+    if ($Version) { return "Release v$Version - $what ($count)" }
+    if ($Stamp)   { return "Update $what ($count) - $Stamp" }
+    return "Update $what ($count) - $when"
+}
+
 Push-Location $ProjectDir
 try {
+    # ---- decide what is being published, BEFORE anything is committed ----------
+    #
+    # The version has to be known before the commit, or the stamp baked into
+    # tweaks.js would name the previous release rather than the one going out.
+
+    $current = (& gh release view --json tagName --jq '.tagName' 2>$null | Select-Object -First 1)
+    if ($current) { $current = $current.Trim() }
+
+    Write-Host ''
+    Say 'Changes to tweaks/ go live on their own - every installed copy picks them'
+    Say 'up on its next launch. A build is only needed for native code.'
+    Write-Host ''
+
+    $publishBuild = Ask 'Publish a new app build too? (only for native code changes)'
+    $version = $null
+
+    if ($publishBuild) {
+        Step 'Version'
+
+        $suggested = '1.0'
+        if ($current) {
+            Say "currently published:  $current"
+            $parts = ($current -replace '^v', '') -split '\.'
+            if ($parts[-1] -match '^\d+$') {
+                # Keep the original width, so 1.02 becomes 1.03 rather than 1.3.
+                $width = $parts[-1].Length
+                $parts[-1] = ([int]$parts[-1] + 1).ToString().PadLeft($width, '0')
+                $suggested = ($parts -join '.')
+            } else {
+                $suggested = $current -replace '^v', ''
+            }
+        } else {
+            Say 'no releases published yet - this will be the first'
+        }
+
+        $version = Read-Host "  New version number [$suggested]"
+        if (-not $version) { $version = $suggested }
+        $version = ($version.Trim() -replace '^v', '')
+        if (-not $version) { Stop-With 'No version given' @('Run again and enter something like 1.1') }
+
+        # A tag cannot be reused, so catch it here rather than after a 4-minute build.
+        & gh release view "v$version" 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Stop-With "Version $version is already published" @(
+                "Pick a number that is not taken - $suggested is free.",
+                'Git tags cannot be reused, so GitHub rejects duplicates.'
+            )
+        }
+    }
+
+    # Stamp against whatever version the phone will actually be running: the new one
+    # if a build is going out, otherwise the release already installed.
+    $stampVersion = if ($version) { $version }
+                    elseif ($current) { ($current -replace '^v', '') }
+                    else { '0' }
+
+    $stamp = Set-TweaksStamp -AppVersion $stampVersion
+    if ($stamp) { Say "badge stamped:  $stamp" Green }
+
     Step 'Pushing your changes'
 
     # A stale index.lock blocks every git command. It is left behind when a git
@@ -102,8 +226,8 @@ try {
     $summary = (& git diff --cached --shortstat 2>$null)
     if ($summary) { Say "changes: $($summary.Trim())" } else { Say 'no file changes' }
 
-    $message = Read-Host '  Commit message [SlimRead update]'
-    if (-not $message) { $message = 'SlimRead update' }
+    $message = New-CommitMessage -Version $version -Stamp $stamp
+    Say "commit: $message"
     & git commit -m $message --allow-empty | Out-Null
     & git push
     if ($LASTEXITCODE -ne 0) {
@@ -114,53 +238,19 @@ try {
     }
     Say 'pushed' Green
 
-    Write-Host ''
-    Say 'If you only changed tweaks/, you are done - every installed copy picks'
-    Say 'those up on its next launch.'
-    Write-Host ''
-
-    if (-not (Ask 'Publish a new app build too? (only for native code changes)')) {
+    if (-not $publishBuild) {
         Write-Host ''
         Say 'Done - committed, pushed, and tweaks are live on every installed copy.' Green
+        if ($stamp) {
+            Write-Host ''
+            Say "On the phone: reopen the app and the badge should read  $stamp"
+            Say 'Not showing? Give it five minutes - GitHub caches raw files that long.'
+        }
         Write-Host ''
         exit 0
     }
 
     Step 'Publishing a release'
-
-    # Show what is already out there, and offer the obvious next number.
-    $current = (& gh release view --json tagName --jq '.tagName' 2>$null | Select-Object -First 1)
-    $suggested = '1.0'
-
-    if ($LASTEXITCODE -eq 0 -and $current) {
-        $current = $current.Trim()
-        Say "currently published:  $current"
-        $parts = ($current -replace '^v', '') -split '\.'
-        if ($parts[-1] -match '^\d+$') {
-            # Keep the original width, so 1.02 becomes 1.03 rather than 1.3.
-            $width = $parts[-1].Length
-            $parts[-1] = ([int]$parts[-1] + 1).ToString().PadLeft($width, '0')
-            $suggested = ($parts -join '.')
-        } else {
-            $suggested = $current -replace '^v', ''
-        }
-    } else {
-        Say 'no releases published yet - this will be the first'
-    }
-
-    $version = Read-Host "  New version number [$suggested]"
-    if (-not $version) { $version = $suggested }
-    $version = ($version.Trim() -replace '^v', '')
-    if (-not $version) { Stop-With 'No version given' @('Run again and enter something like 1.1') }
-
-    # A tag cannot be reused, so catch it here rather than after a 4-minute build.
-    & gh release view "v$version" 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Stop-With "Version $version is already published" @(
-            "Pick a number that is not taken - $suggested is free.",
-            'Git tags cannot be reused, so GitHub rejects duplicates.'
-        )
-    }
     Say "publishing v$version"
 
     # Note which run is newest BEFORE dispatching, so the new one can be told apart.

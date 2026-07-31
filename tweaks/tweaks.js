@@ -35,7 +35,7 @@
        again until this string changes. Set SHOW_BADGE to false to silence it.
        --------------------------------------------------------------------- */
 
-    var TWEAKS_VERSION = '2026-08-01.1';
+    var TWEAKS_VERSION = '1.06 b1 01 Aug 03:38';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
