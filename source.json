@@ -1,0 +1,32 @@
+{
+  "name": "SlimRead",
+  "identifier": "com.example.slimread.source",
+  "subtitle": "A status-bar-free reader for vertical-scroll comics",
+  "description": "Updates for SlimRead, a minimal iOS browser that hides the status bar in portrait.",
+  "iconURL": "https://raw.githubusercontent.com/llllllllllllllppppppppppp/slimread/main/SlimRead/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+  "website": "https://github.com/llllllllllllllppppppppppp/slimread",
+  "apps": [
+    {
+      "name": "SlimRead",
+      "bundleIdentifier": "com.example.slimread",
+      "developerName": "SlimRead",
+      "subtitle": "Read without the status bar",
+      "localizedDescription": "A minimal browser that hides the iOS status bar in portrait, for reading vertical-scroll comics without system UI over the artwork.",
+      "iconURL": "https://raw.githubusercontent.com/llllllllllllllppppppppppp/slimread/main/SlimRead/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+      "tintColor": "8C6EE7",
+      "category": "entertainment",
+      "screenshotURLs": [],
+      "version": "1.0",
+      "versionDate": "2026-07-31T18:56:34Z",
+      "versionDescription": "Initial release.",
+      "downloadURL": "https://github.com/llllllllllllllppppppppppp/slimread/releases/download/v1.0/SlimRead.ipa",
+      "size": 65098,
+      "versions": [],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
+    }
+  ],
+  "news": []
+}

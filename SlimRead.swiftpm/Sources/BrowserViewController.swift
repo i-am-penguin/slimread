@@ -3,9 +3,9 @@ import WebKit
 
 /// A single full-screen WKWebView with no permanent chrome.
 ///
-/// The whole point of this app: `prefersStatusBarHidden` returns `true` unconditionally,
-/// so the status bar is gone in portrait as well as landscape. No orientation trickery,
-/// no private API — this is the documented, App Store-legal way to do it.
+/// The status bar is hidden in every orientation via `prefersStatusBarHidden`. Page-level
+/// behaviour (layout fixes, image loading, hiding site chrome) is driven by CSS and JS
+/// fetched from the repository at launch - see TweaksLoader.
 final class BrowserViewController: UIViewController {
 
     // MARK: - Config
@@ -13,19 +13,23 @@ final class BrowserViewController: UIViewController {
     private enum Key {
         static let lastURL = "SlimRead.lastURL"
         static let fullBleed = "SlimRead.fullBleed"
+        static let seenGuide = "SlimRead.seenGuide"
     }
 
-    /// Change this if you want the app to open somewhere other than Tapas.
+    /// Change this to open somewhere other than Tapas.
     private let homeURL = URL(string: "https://tapas.io")!
 
-    /// Seconds of inactivity before the control bar auto-hides again.
-    private let autoHideDelay: TimeInterval = 5
+    /// Seconds of inactivity before the control bar hides itself.
+    private let autoHideDelay: TimeInterval = 6
+
+    /// Height of the invisible tap target at the top of the screen that toggles the bar.
+    private let topTapZoneHeight: CGFloat = 64
 
     // MARK: - Views
 
     private var webView: WKWebView!
     private let controls = ControlBarView()
-    private let handle = UIView()
+    private let topTapZone = UIView()
     private let progress = UIProgressView(progressViewStyle: .bar)
 
     // MARK: - State
@@ -34,13 +38,12 @@ final class BrowserViewController: UIViewController {
     private var hideWorkItem: DispatchWorkItem?
     private var observations: [NSKeyValueObservation] = []
     private var keyboardOverlap: CGFloat = 0
+    private var lastScrollOffset: CGFloat = 0
 
-    private var controlsBottom: NSLayoutConstraint!
+    private var controlsTop: NSLayoutConstraint!
     private var webTop: NSLayoutConstraint!
     private var webBottom: NSLayoutConstraint!
 
-    /// When true the web view ignores the safe area entirely and paints under the
-    /// Dynamic Island / notch and home indicator. When false it sits inside the safe area.
     private var fullBleed: Bool {
         didSet {
             UserDefaults.standard.set(fullBleed, forKey: Key.fullBleed)
@@ -65,20 +68,11 @@ final class BrowserViewController: UIViewController {
     }
 
     // MARK: - System UI overrides
-    //
-    // These four are the entire trick. Info.plist sets UIViewControllerBasedStatusBarAppearance
-    // to YES so these win, and UIStatusBarHidden to YES so the launch screen matches.
 
     override var prefersStatusBarHidden: Bool { true }
-
     override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
-
     override var prefersHomeIndicatorAutoHidden: Bool { true }
-
-    /// Stops an upward swipe near the bottom edge from yanking you out of the app
-    /// mid-scroll. First swipe reveals the indicator, second one actually leaves.
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.top, .bottom] }
-
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .all }
 
     // MARK: - Lifecycle
@@ -87,6 +81,7 @@ final class BrowserViewController: UIViewController {
         super.viewDidLoad()
 
         view.backgroundColor = .black
+        enlargeURLCache()
 
         buildWebView()
         buildOverlay()
@@ -102,10 +97,34 @@ final class BrowserViewController: UIViewController {
         setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
 
         load(restoredURL() ?? homeURL)
+        refreshTweaks()
+
+        if !UserDefaults.standard.bool(forKey: Key.seenGuide) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                self?.showGuide(firstRun: true)
+            }
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        applyCornerRadius()
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Performance
+
+    /// WKWebView shares URLCache. The default disk allowance is small for a page that is
+    /// mostly large images, so re-reading a chapter refetches everything.
+    private func enlargeURLCache() {
+        URLCache.shared = URLCache(
+            memoryCapacity: 64 * 1024 * 1024,
+            diskCapacity: 512 * 1024 * 1024,
+            diskPath: "slimread-cache"
+        )
     }
 
     // MARK: - Build
@@ -113,8 +132,10 @@ final class BrowserViewController: UIViewController {
     private func buildWebView() {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
-        config.websiteDataStore = .default()          // persistent cookies, so Tapas stays logged in
+        config.websiteDataStore = .default()
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+        config.suppressesIncrementalRendering = false
+        config.userContentController = makeUserContentController()
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -126,6 +147,9 @@ final class BrowserViewController: UIViewController {
         webView.scrollView.backgroundColor = .black
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.decelerationRate = .normal
+        webView.layer.cornerCurve = .continuous
+        webView.layer.masksToBounds = true
         view.addSubview(webView)
 
         webTop = webView.topAnchor.constraint(equalTo: view.topAnchor)
@@ -139,51 +163,59 @@ final class BrowserViewController: UIViewController {
         ])
     }
 
+    private func makeUserContentController() -> WKUserContentController {
+        let controller = WKUserContentController()
+        let tweaks = TweaksLoader.cached
+
+        // CSS first, at document start, so the page never flashes un-styled.
+        controller.addUserScript(WKUserScript(
+            source: TweaksLoader.cssInstallScript(tweaks.css),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        ))
+
+        if !tweaks.js.isEmpty {
+            controller.addUserScript(WKUserScript(
+                source: tweaks.js,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            ))
+        }
+
+        return controller
+    }
+
     private func buildOverlay() {
-        // Thin loading hairline where the status bar used to live.
         progress.translatesAutoresizingMaskIntoConstraints = false
         progress.progressTintColor = .white
         progress.trackTintColor = .clear
         progress.alpha = 0
         view.addSubview(progress)
 
-        // Always-visible grab handle: a small pill at the bottom centre. It swallows its own
-        // taps so it never fights with links on the page.
-        handle.translatesAutoresizingMaskIntoConstraints = false
-        handle.backgroundColor = .clear
-        view.addSubview(handle)
-
-        let pill = UIView()
-        pill.translatesAutoresizingMaskIntoConstraints = false
-        pill.backgroundColor = UIColor.white.withAlphaComponent(0.22)
-        pill.layer.cornerRadius = 2
-        pill.isUserInteractionEnabled = false
-        handle.addSubview(pill)
+        // Invisible strip across the top - the notch / Dynamic Island sits inside it.
+        topTapZone.translatesAutoresizingMaskIntoConstraints = false
+        topTapZone.backgroundColor = .clear
+        view.addSubview(topTapZone)
 
         controls.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(controls)
 
-        controlsBottom = controls.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 240)
+        controlsTop = controls.topAnchor.constraint(equalTo: view.topAnchor, constant: -260)
 
         NSLayoutConstraint.activate([
-            progress.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            progress.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            progress.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            progress.heightAnchor.constraint(equalToConstant: 2),
-
-            handle.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            handle.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            handle.widthAnchor.constraint(equalToConstant: 120),
-            handle.heightAnchor.constraint(equalToConstant: 34),
-
-            pill.centerXAnchor.constraint(equalTo: handle.centerXAnchor),
-            pill.centerYAnchor.constraint(equalTo: handle.centerYAnchor, constant: -2),
-            pill.widthAnchor.constraint(equalToConstant: 40),
-            pill.heightAnchor.constraint(equalToConstant: 4),
+            topTapZone.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            topTapZone.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topTapZone.topAnchor.constraint(equalTo: view.topAnchor),
+            topTapZone.heightAnchor.constraint(equalToConstant: topTapZoneHeight),
 
             controls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             controls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            controlsBottom
+            controlsTop,
+
+            progress.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            progress.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            progress.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            progress.heightAnchor.constraint(equalToConstant: 2)
         ])
 
         wireControls()
@@ -197,9 +229,10 @@ final class BrowserViewController: UIViewController {
             guard let self else { return }
             self.load(self.homeURL)
         }
-        controls.onToggleFullBleed = { [weak self] in
-            guard let self else { return }
-            self.fullBleed.toggle()
+        controls.onToggleFullBleed = { [weak self] in self?.fullBleed.toggle() }
+        controls.onGuide = { [weak self] in
+            self?.setControls(visible: false)
+            self?.showGuide(firstRun: false)
         }
         controls.onSubmit = { [weak self] text in
             guard let self, let url = Self.resolve(text) else { return }
@@ -210,14 +243,28 @@ final class BrowserViewController: UIViewController {
     }
 
     private func buildGestures() {
-        let handleTap = UITapGestureRecognizer(target: self, action: #selector(toggleControls))
-        handle.addGestureRecognizer(handleTap)
+        let topTap = UITapGestureRecognizer(target: self, action: #selector(toggleControls))
+        topTapZone.addGestureRecognizer(topTap)
 
-        // Two-finger tap anywhere is the escape hatch if the pill is awkward to reach.
         let twoFinger = UITapGestureRecognizer(target: self, action: #selector(toggleControls))
         twoFinger.numberOfTouchesRequired = 2
         twoFinger.delegate = self
         view.addGestureRecognizer(twoFinger)
+    }
+
+    // MARK: - Corner radius
+    //
+    // Squares off against rounded display corners otherwise. UIScreen knows the real
+    // radius but only privately, so fall back to a sensible value per device shape.
+
+    private func applyCornerRadius() {
+        let radius: CGFloat
+        if let known = UIScreen.main.value(forKey: "_displayCornerRadius") as? CGFloat, known > 0 {
+            radius = known
+        } else {
+            radius = view.safeAreaInsets.top > 24 ? 47 : 0
+        }
+        webView.layer.cornerRadius = fullBleed ? radius : 0
     }
 
     // MARK: - Layout modes
@@ -237,7 +284,10 @@ final class BrowserViewController: UIViewController {
         webTop.isActive = true
         webBottom.isActive = true
 
-        UIView.animate(withDuration: 0.2) { self.view.layoutIfNeeded() }
+        UIView.animate(withDuration: 0.2) {
+            self.view.layoutIfNeeded()
+            self.applyCornerRadius()
+        }
     }
 
     // MARK: - Controls show / hide
@@ -250,7 +300,7 @@ final class BrowserViewController: UIViewController {
         controlsVisible = visible
         if !visible { controls.field.resignFirstResponder() }
 
-        controlsBottom.constant = visible ? -keyboardOverlap : 240
+        controlsTop.constant = visible ? 0 : -260
 
         UIView.animate(
             withDuration: 0.28,
@@ -259,7 +309,6 @@ final class BrowserViewController: UIViewController {
             initialSpringVelocity: 0,
             options: [.beginFromCurrentState, .allowUserInteraction]
         ) {
-            self.handle.alpha = visible ? 0 : 1
             self.view.layoutIfNeeded()
         }
 
@@ -276,45 +325,74 @@ final class BrowserViewController: UIViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + autoHideDelay, execute: work)
     }
 
+    // MARK: - Guide
+
+    private func showGuide(firstRun: Bool) {
+        let guide = GuideOverlayView()
+        guide.onDismiss = { [weak guide] in
+            UserDefaults.standard.set(true, forKey: Key.seenGuide)
+            guide?.dismiss()
+        }
+        guide.present(in: view)
+    }
+
     // MARK: - Keyboard
 
     private func observeKeyboard() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(keyboardFrameChanged(_:)),
-            name: UIResponder.keyboardWillChangeFrameNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(keyboardWillHide),
-            name: UIResponder.keyboardWillHideNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(saveState),
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
+        let centre = NotificationCenter.default
+        centre.addObserver(self, selector: #selector(keyboardFrameChanged(_:)),
+                           name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        centre.addObserver(self, selector: #selector(keyboardWillHide),
+                           name: UIResponder.keyboardWillHideNotification, object: nil)
+        centre.addObserver(self, selector: #selector(saveState),
+                           name: UIApplication.didEnterBackgroundNotification, object: nil)
+        centre.addObserver(self, selector: #selector(appBecameActive),
+                           name: UIApplication.didBecomeActiveNotification, object: nil)
     }
 
     @objc private func keyboardFrameChanged(_ note: Notification) {
         guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
         let converted = view.convert(frame, from: nil)
         keyboardOverlap = max(0, view.bounds.maxY - converted.minY)
-        if controlsVisible {
-            controlsBottom.constant = -keyboardOverlap
-            UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
-        }
     }
 
     @objc private func keyboardWillHide() {
         keyboardOverlap = 0
-        if controlsVisible {
-            controlsBottom.constant = 0
-            UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
-            scheduleAutoHide()
+        if controlsVisible { scheduleAutoHide() }
+    }
+
+    /// Pick up repo edits without needing the app to be reinstalled.
+    @objc private func appBecameActive() {
+        refreshTweaks()
+    }
+
+    // MARK: - Tweaks
+
+    private func refreshTweaks() {
+        TweaksLoader.refresh { [weak self] updated in
+            guard let self, let updated else { return }
+
+            // Swap the stylesheet live, then re-register scripts so the next page load
+            // gets them at document start too.
+            self.webView.evaluateJavaScript(TweaksLoader.cssInstallScript(updated.css))
+            if !updated.js.isEmpty {
+                self.webView.evaluateJavaScript(updated.js)
+            }
+
+            let controller = self.webView.configuration.userContentController
+            controller.removeAllUserScripts()
+            controller.addUserScript(WKUserScript(
+                source: TweaksLoader.cssInstallScript(updated.css),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            ))
+            if !updated.js.isEmpty {
+                controller.addUserScript(WKUserScript(
+                    source: updated.js,
+                    injectionTime: .atDocumentEnd,
+                    forMainFrameOnly: true
+                ))
+            }
         }
     }
 
@@ -324,8 +402,6 @@ final class BrowserViewController: UIViewController {
         webView.load(URLRequest(url: url))
     }
 
-    /// Turns whatever the user typed into a URL: bare hosts get https://, anything
-    /// with a space or no dot becomes a DuckDuckGo search.
     static func resolve(_ input: String) -> URL? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -384,6 +460,17 @@ final class BrowserViewController: UIViewController {
             },
             webView.observe(\.canGoForward, options: [.new]) { [weak self] webView, _ in
                 self?.controls.setCanGoBack(webView.canGoBack, canGoForward: webView.canGoForward)
+            },
+            // Hide the bar as soon as the reader scrolls down. KVO rather than a scroll
+            // delegate, because WKWebView owns its scroll view's delegate.
+            webView.scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
+                guard let self else { return }
+                let offset = scrollView.contentOffset.y
+                defer { self.lastScrollOffset = offset }
+                guard self.controlsVisible, !self.controls.field.isFirstResponder else { return }
+                if offset - self.lastScrollOffset > 6 {
+                    self.setControls(visible: false)
+                }
             }
         ]
     }
@@ -403,7 +490,6 @@ extension BrowserViewController: WKNavigationDelegate {
             return
         }
 
-        // Hand tel:, mailto:, itms-apps: etc. to the system instead of failing to load them.
         if let scheme = url.scheme?.lowercased(), scheme != "http", scheme != "https", scheme != "about" {
             if UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
@@ -417,6 +503,7 @@ extension BrowserViewController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         saveState()
+        lastScrollOffset = webView.scrollView.contentOffset.y
     }
 }
 
@@ -424,7 +511,6 @@ extension BrowserViewController: WKNavigationDelegate {
 
 extension BrowserViewController: WKUIDelegate {
 
-    /// target="_blank" links would otherwise silently do nothing; load them in place.
     func webView(
         _ webView: WKWebView,
         createWebViewWith configuration: WKWebViewConfiguration,

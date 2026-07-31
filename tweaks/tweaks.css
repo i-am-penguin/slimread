@@ -1,0 +1,101 @@
+/* ===========================================================================
+   SlimRead page tweaks - LIVE FILE
+   ---------------------------------------------------------------------------
+   The app fetches this from GitHub every time it launches or returns to the
+   foreground. Edit, commit, push, then reopen the app. No rebuild, no
+   re-signing, no reinstall.
+
+   Deliberately defensive: selectors are broad because site markup changes.
+   If something here is too aggressive, delete the block - worst case the page
+   renders the way it does in Safari.
+   =========================================================================== */
+
+/* --- Kill the white letterboxing around episode art ---------------------- */
+
+html, body {
+    background: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+}
+
+/* Containers commonly used to constrain reading width. */
+.container,
+.content,
+.viewer,
+.viewer__body,
+.viewer-body,
+.episode,
+.episode__content,
+.ep-content,
+main,
+article,
+[class*="viewer"],
+[class*="Viewer"],
+[class*="episode"],
+[class*="Episode"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    background: #000 !important;
+}
+
+/* The art itself: edge to edge, no gaps between panels. */
+img {
+    max-width: 100% !important;
+}
+
+.viewer img,
+.viewer__body img,
+[class*="viewer"] img,
+[class*="episode"] img,
+article img {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    vertical-align: top !important;
+}
+
+/* --- Site chrome that competes with the artwork -------------------------- */
+
+/* Cookie banners, app-install interstitials, floating promos. */
+[class*="cookie"],
+[class*="Cookie"],
+[id*="cookie"],
+[class*="app-banner"],
+[class*="smart-banner"],
+[class*="AppBanner"],
+[class*="floating-banner"] {
+    display: none !important;
+}
+
+/* The persistent bottom navigation bar is handled by tweaks.js, which slides
+   it away while you scroll and brings it back at the end of the chapter.
+   Uncomment to remove it outright instead. */
+/*
+[class*="bottom-bar"],
+[class*="bottomBar"],
+[class*="BottomBar"],
+[class*="ep-nav"],
+[class*="episode-nav"] {
+    display: none !important;
+}
+*/
+
+/* Smooth the transition when tweaks.js hides it. */
+.slimread-autohide {
+    transition: transform 0.22s ease, opacity 0.22s ease !important;
+}
+
+.slimread-hidden {
+    transform: translateY(130%) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

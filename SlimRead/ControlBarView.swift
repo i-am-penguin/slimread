@@ -1,8 +1,7 @@
 import UIKit
 
-/// Bottom overlay bar. Hidden by default; slides up when the user taps the pill handle
-/// or two-finger taps anywhere. Deliberately lives at the bottom so it is thumb-reachable
-/// and never competes with the (absent) status bar area at the top.
+/// Top overlay bar. Hidden by default; revealed by tapping the top of the screen
+/// (the notch / Dynamic Island area) or by a two-finger tap anywhere.
 final class ControlBarView: UIView {
 
     // MARK: - Callbacks
@@ -12,6 +11,7 @@ final class ControlBarView: UIView {
     var onReload: (() -> Void)?
     var onHome: (() -> Void)?
     var onToggleFullBleed: (() -> Void)?
+    var onGuide: (() -> Void)?
     var onSubmit: ((String) -> Void)?
     var onInteraction: (() -> Void)?
 
@@ -23,10 +23,11 @@ final class ControlBarView: UIView {
     private let reloadButton = ControlBarView.makeButton("arrow.clockwise")
     private let homeButton = ControlBarView.makeButton("house")
     private let fullBleedButton = ControlBarView.makeButton("arrow.up.left.and.arrow.down.right")
+    private let guideButton = ControlBarView.makeButton("questionmark.circle")
 
     let field: UITextField = {
         let f = UITextField()
-        f.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        f.backgroundColor = UIColor.white.withAlphaComponent(0.14)
         f.textColor = .white
         f.tintColor = .white
         f.font = .systemFont(ofSize: 15)
@@ -50,7 +51,8 @@ final class ControlBarView: UIView {
         return f
     }()
 
-    private let barHeight: CGFloat = 52
+    /// Content height below the safe-area inset.
+    private let barHeight: CGFloat = 92
 
     // MARK: - Init
 
@@ -70,18 +72,19 @@ final class ControlBarView: UIView {
         blur.translatesAutoresizingMaskIntoConstraints = false
         addSubview(blur)
 
-        let navStack = UIStackView(arrangedSubviews: [backButton, forwardButton])
-        navStack.spacing = 4
+        // Row 1: address field on its own line, so it stays wide on narrow phones.
+        // Row 2: the buttons, evenly spread.
+        let buttons = UIStackView(arrangedSubviews: [
+            backButton, forwardButton, reloadButton, homeButton, fullBleedButton, guideButton
+        ])
+        buttons.axis = .horizontal
+        buttons.distribution = .equalSpacing
 
-        let actionStack = UIStackView(arrangedSubviews: [reloadButton, homeButton, fullBleedButton])
-        actionStack.spacing = 4
-
-        let row = UIStackView(arrangedSubviews: [navStack, field, actionStack])
-        row.axis = .horizontal
-        row.alignment = .center
-        row.spacing = 8
-        row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(row)
+        let column = UIStackView(arrangedSubviews: [field, buttons])
+        column.axis = .vertical
+        column.spacing = 8
+        column.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(column)
 
         NSLayoutConstraint.activate([
             blur.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -89,10 +92,9 @@ final class ControlBarView: UIView {
             blur.topAnchor.constraint(equalTo: topAnchor),
             blur.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            row.topAnchor.constraint(equalTo: topAnchor, constant: 6),
-            row.heightAnchor.constraint(equalToConstant: 40),
+            column.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            column.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            column.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
 
             field.heightAnchor.constraint(equalToConstant: 36)
         ])
@@ -105,14 +107,15 @@ final class ControlBarView: UIView {
         reloadButton.addTarget(self, action: #selector(tapReload), for: .touchUpInside)
         homeButton.addTarget(self, action: #selector(tapHome), for: .touchUpInside)
         fullBleedButton.addTarget(self, action: #selector(tapFullBleed), for: .touchUpInside)
+        guideButton.addTarget(self, action: #selector(tapGuide), for: .touchUpInside)
     }
 
     // MARK: - Sizing
     //
-    // Height grows to swallow the home-indicator inset so the blur reaches the screen edge.
+    // Grows upward to cover the status-bar region so the blur reaches the screen edge.
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: barHeight + safeAreaInsets.bottom)
+        CGSize(width: UIView.noIntrinsicMetric, height: barHeight + safeAreaInsets.top)
     }
 
     override func safeAreaInsetsDidChange() {
@@ -136,7 +139,7 @@ final class ControlBarView: UIView {
 
     func setFullBleed(_ on: Bool) {
         let name = on ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
-        let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
         fullBleedButton.setImage(UIImage(systemName: name, withConfiguration: config), for: .normal)
     }
 
@@ -148,16 +151,17 @@ final class ControlBarView: UIView {
     @objc private func tapReload() { onInteraction?(); onReload?() }
     @objc private func tapHome() { onInteraction?(); onHome?() }
     @objc private func tapFullBleed() { onInteraction?(); onToggleFullBleed?() }
+    @objc private func tapGuide() { onInteraction?(); onGuide?() }
 
     // MARK: - Helpers
 
     private static func makeButton(_ systemName: String) -> UIButton {
         let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
         b.setImage(UIImage(systemName: systemName, withConfiguration: config), for: .normal)
         b.tintColor = .white
-        b.widthAnchor.constraint(equalToConstant: 38).isActive = true
-        b.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        b.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        b.heightAnchor.constraint(equalToConstant: 40).isActive = true
         return b
     }
 }

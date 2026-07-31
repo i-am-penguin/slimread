@@ -11,6 +11,8 @@
 		AA0000000000000000000021 /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* BrowserViewController.swift */; };
 		AA0000000000000000000022 /* ControlBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000012 /* ControlBarView.swift */; };
 		AA0000000000000000000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000013 /* Assets.xcassets */; };
+		AA0000000000000000000024 /* TweaksLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000015 /* TweaksLoader.swift */; };
+		AA0000000000000000000025 /* GuideOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000016 /* GuideOverlayView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +22,8 @@
 		AA0000000000000000000012 /* ControlBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlBarView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA0000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA0000000000000000000015 /* TweaksLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TweaksLoader.swift; sourceTree = "<group>"; };
+		AA0000000000000000000016 /* GuideOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideOverlayView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +59,8 @@
 				AA0000000000000000000010 /* AppDelegate.swift */,
 				AA0000000000000000000011 /* BrowserViewController.swift */,
 				AA0000000000000000000012 /* ControlBarView.swift */,
+				AA0000000000000000000015 /* TweaksLoader.swift */,
+				AA0000000000000000000016 /* GuideOverlayView.swift */,
 				AA0000000000000000000013 /* Assets.xcassets */,
 				AA0000000000000000000014 /* Info.plist */,
 			);
@@ -133,6 +139,8 @@
 				AA0000000000000000000020 /* AppDelegate.swift in Sources */,
 				AA0000000000000000000021 /* BrowserViewController.swift in Sources */,
 				AA0000000000000000000022 /* ControlBarView.swift in Sources */,
+				AA0000000000000000000024 /* TweaksLoader.swift in Sources */,
+				AA0000000000000000000025 /* GuideOverlayView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
