@@ -11,7 +11,9 @@
     up on next launch. A release is only for native code.
 #>
 
-$ErrorActionPreference = 'Stop'
+# Native tools (git, gh) write ordinary output to stderr, and 'Stop' would treat
+# that as fatal. Exit codes are checked explicitly after every call instead.
+$ErrorActionPreference = 'Continue'
 $ProjectDir = $PSScriptRoot
 
 function Say  { param([string]$t = '', [string]$c = 'Gray') Write-Host "  $t" -ForegroundColor $c }
@@ -123,7 +125,7 @@ try {
     Step 'Publishing a release'
 
     # Show what is already out there, and offer the obvious next number.
-    $current = (& gh release view --json tagName --jq '.tagName' 2>$null)
+    $current = (& gh release view --json tagName --jq '.tagName' 2>$null | Select-Object -First 1)
     $suggested = '1.0'
 
     if ($LASTEXITCODE -eq 0 -and $current) {
@@ -131,7 +133,9 @@ try {
         Say "currently published:  $current"
         $parts = ($current -replace '^v', '') -split '\.'
         if ($parts[-1] -match '^\d+$') {
-            $parts[-1] = [string]([int]$parts[-1] + 1)
+            # Keep the original width, so 1.02 becomes 1.03 rather than 1.3.
+            $width = $parts[-1].Length
+            $parts[-1] = ([int]$parts[-1] + 1).ToString().PadLeft($width, '0')
             $suggested = ($parts -join '.')
         } else {
             $suggested = $current -replace '^v', ''
@@ -146,7 +150,7 @@ try {
     if (-not $version) { Stop-With 'No version given' @('Run again and enter something like 1.1') }
 
     # A tag cannot be reused, so catch it here rather than after a 4-minute build.
-    & gh release view "v$version" *> $null
+    & gh release view "v$version" 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Stop-With "Version $version is already published" @(
             "Pick a number that is not taken - $suggested is free.",
@@ -177,5 +181,24 @@ try {
     Write-Host ''
     Say "Published v$version. Anyone running SlimRead.bat now gets this build." Green
     Write-Host ''
+
+    # You are the maintainer, but you also want it on your own phone. Publishing
+    # only puts the build on GitHub, so fetch it back here ready for Sideloadly.
+    if (Ask 'Download this build to sideload onto your own phone?') {
+        Get-ChildItem $ProjectDir -Filter *.ipa -File -ErrorAction SilentlyContinue | Remove-Item -Force
+        & gh release download "v$version" --pattern 'SlimRead.ipa' --dir $ProjectDir
+        if ($LASTEXITCODE -ne 0) {
+            Say 'Could not download it automatically. Get it from:' Yellow
+            Say "  https://github.com/$account/slimread/releases/tag/v$version" Yellow
+        } else {
+            $ipa = Get-ChildItem $ProjectDir -Filter *.ipa -File | Select-Object -First 1
+            Say "SlimRead.ipa is in this folder ($([math]::Round($ipa.Length / 1KB)) KB)" Green
+            Write-Host ''
+            Say 'Now drag it onto Sideloadly with your phone connected.'
+            Say 'Tick auto-refresh so it renews itself each week.'
+            Start-Process explorer.exe "/select,`"$($ipa.FullName)`""
+        }
+        Write-Host ''
+    }
 }
 finally { Pop-Location }
