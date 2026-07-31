@@ -68,6 +68,31 @@ img {
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
 }
 
+/* --- Version badge -------------------------------------------------------
+   Shown by tweaks.js for ~2s, once per TWEAKS_VERSION, to confirm from the
+   phone that a tweaks push landed. Sits below the Dynamic Island.
+   ------------------------------------------------------------------------- */
+
+.slimread-badge {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+    right: 12px !important;
+    z-index: 2147483647 !important;
+    background: rgba(0, 0, 0, 0.82) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    font: 500 11px/1 -apple-system, system-ui, sans-serif !important;
+    letter-spacing: 0.02em !important;
+    padding: 6px 9px !important;
+    border-radius: 7px !important;
+    pointer-events: none !important;
+    opacity: 1 !important;
+    transition: opacity 0.45s ease !important;
+}
+
+.slimread-badge-out {
+    opacity: 0 !important;
+}
+
 /* Smooth the transition when tweaks.js slides the bottom bar away. */
 .slimread-autohide {
     transition: transform 0.22s ease, opacity 0.22s ease !important;

@@ -26,6 +26,39 @@
 
     var root = document.documentElement;
 
+    /* --- Version marker --------------------------------------------------
+       BUMP THIS whenever you push tweaks. It is the only way to confirm from
+       the phone that a tweaks push actually landed, and unlike the app version
+       it needs no sideload - this file is fetched fresh on every launch.
+
+       The badge shows once per version, for about two seconds, then never
+       again until this string changes. Set SHOW_BADGE to false to silence it.
+       --------------------------------------------------------------------- */
+
+    var TWEAKS_VERSION = '2026-08-01.1';
+    var SHOW_BADGE = true;
+
+    function showVersionBadge() {
+        if (!SHOW_BADGE || !document.body) return;
+
+        // Only announce a version once. Private mode throws on localStorage, in
+        // which case showing it every time is the harmless outcome.
+        try {
+            if (window.localStorage.getItem('slimread.tweaksSeen') === TWEAKS_VERSION) return;
+            window.localStorage.setItem('slimread.tweaksSeen', TWEAKS_VERSION);
+        } catch (e) { /* no storage - fall through and show it */ }
+
+        var badge = document.createElement('div');
+        badge.className = 'slimread-badge';
+        badge.textContent = 'tweaks ' + TWEAKS_VERSION;
+        document.body.appendChild(badge);
+
+        setTimeout(function () { badge.className = 'slimread-badge slimread-badge-out'; }, 2200);
+        setTimeout(function () {
+            if (badge.parentNode) badge.parentNode.removeChild(badge);
+        }, 2800);
+    }
+
     /* --- 0. Reader detection --------------------------------------------- */
 
     // Only the episode viewer wants edge-to-edge artwork. Listing pages are a
@@ -317,6 +350,7 @@
 
     function start() {
         sweep();
+        showVersionBadge();
 
         window.addEventListener('scroll', onScroll, { passive: true });
         new MutationObserver(queuePromote).observe(root, { childList: true, subtree: true });
