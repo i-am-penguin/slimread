@@ -16,6 +16,10 @@
 $ErrorActionPreference = 'Continue'
 $ProjectDir = $PSScriptRoot
 
+# Where this publishes to. Keep in step with the same two lines in SlimRead.ps1.
+$Owner = 'llllllllllllllppppppppppp'
+$Repo  = 'slimread'
+
 function Say  { param([string]$t = '', [string]$c = 'Gray') Write-Host "  $t" -ForegroundColor $c }
 function Step { param([string]$t) Write-Host ''; Write-Host "  $t" -ForegroundColor Cyan }
 function Ask  { param([string]$q) return ((Read-Host "  $q (Y/n)") -notmatch '^[Nn]') }
@@ -159,6 +163,18 @@ try {
     }
     Say "publishing v$version"
 
+    # Note which run is newest BEFORE dispatching, so the new one can be told apart.
+    # Grabbing "the latest run" after a fixed sleep picks up the PREVIOUS release
+    # whenever GitHub has not registered the new one yet - and that one already says
+    # success, so the script would sail past a build that never happened.
+    function Latest-RunId {
+        $id = (& gh run list --workflow release-ipa.yml --limit 1 --json databaseId --jq '.[0].databaseId' 2>$null)
+        if ($id) { return $id.Trim() }
+        return ''
+    }
+
+    $previousRun = Latest-RunId
+
     & gh workflow run 'release-ipa.yml' -f version=$version
     if ($LASTEXITCODE -ne 0) {
         Stop-With 'Could not start the release build' @(
@@ -167,15 +183,28 @@ try {
     }
 
     Say 'building, usually 2-4 minutes...'
-    Start-Sleep -Seconds 8
-    $runId = (& gh run list --workflow release-ipa.yml --limit 1 --json databaseId --jq '.[0].databaseId' 2>$null)
-    if ($runId) {
-        $runId = $runId.Trim()
-        & gh run watch $runId --exit-status
-        if ((& gh run view $runId --json conclusion --jq '.conclusion' 2>$null) -ne 'success') {
-            & gh run view $runId --log-failed
-            Stop-With 'Release build failed' @('The compiler output is above.')
-        }
+
+    $runId = ''
+    foreach ($attempt in 1..30) {
+        Start-Sleep -Seconds 4
+        $candidate = Latest-RunId
+        if ($candidate -and $candidate -ne $previousRun) { $runId = $candidate; break }
+    }
+
+    if (-not $runId) {
+        Stop-With 'The release build never started' @(
+            'GitHub accepted the request but no run appeared within two minutes.',
+            "Check it by hand: https://github.com/$Owner/$Repo/actions",
+            "Nothing was released, so v$version is still free to use."
+        )
+    }
+
+    & gh run watch $runId --exit-status
+    $conclusion = (& gh run view $runId --json conclusion --jq '.conclusion' 2>$null)
+    if ($conclusion) { $conclusion = $conclusion.Trim() }
+    if ($conclusion -ne 'success') {
+        & gh run view $runId --log-failed
+        Stop-With 'Release build failed' @('The compiler output is above.')
     }
 
     Write-Host ''
@@ -185,13 +214,26 @@ try {
     # You are the maintainer, but you also want it on your own phone. Publishing
     # only puts the build on GitHub, so fetch it back here ready for Sideloadly.
     if (Ask 'Download this build to sideload onto your own phone?') {
-        Get-ChildItem $ProjectDir -Filter *.ipa -File -ErrorAction SilentlyContinue | Remove-Item -Force
-        & gh release download "v$version" --pattern 'SlimRead.ipa' --dir $ProjectDir
-        if ($LASTEXITCODE -ne 0) {
+        # Fetch to one side first. Clearing the folder before downloading means a
+        # failure here leaves you with no IPA at all, including the one that worked.
+        $staging = Join-Path $ProjectDir '.ipa-download'
+        Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $staging -Force | Out-Null
+
+        & gh release download "v$version" --pattern 'SlimRead.ipa' --dir $staging
+        $fetched = Join-Path $staging 'SlimRead.ipa'
+
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $fetched)) {
             Say 'Could not download it automatically. Get it from:' Yellow
-            Say "  https://github.com/$account/slimread/releases/tag/v$version" Yellow
+            Say "  https://github.com/$Owner/$Repo/releases/tag/v$version" Yellow
+            Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
         } else {
-            $ipa = Get-ChildItem $ProjectDir -Filter *.ipa -File | Select-Object -First 1
+            Get-ChildItem $ProjectDir -Filter *.ipa -File -ErrorAction SilentlyContinue | Remove-Item -Force
+            $target = Join-Path $ProjectDir 'SlimRead.ipa'
+            Move-Item $fetched $target -Force
+            Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+
+            $ipa = Get-Item $target
             Say "SlimRead.ipa is in this folder ($([math]::Round($ipa.Length / 1KB)) KB)" Green
             Write-Host ''
             Say 'Now drag it onto Sideloadly with your phone connected.'

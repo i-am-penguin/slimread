@@ -9,6 +9,17 @@ name: Build unsigned IPA
 on:
   push:
     branches: [main]
+    # A tweaks-only push is the whole point of tweaks/ - every installed copy picks
+    # those up on its own and no build is involved. macOS runners bill at 10x the
+    # minute rate, so do not spend one re-compiling unchanged native code.
+    paths-ignore:
+      - 'tweaks/**'
+      - '**/*.md'
+      - '*.ps1'
+      - '*.bat'
+      - 'LICENSE'
+      - '.gitattributes'
+      - '.gitignore'
   workflow_dispatch:
 
 jobs:

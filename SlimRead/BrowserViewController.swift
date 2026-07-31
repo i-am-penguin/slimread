@@ -31,13 +31,13 @@ final class BrowserViewController: UIViewController {
     private let controls = ControlBarView()
     private let topTapZone = UIView()
     private let progress = UIProgressView(progressViewStyle: .bar)
+    private let cornerMask = CornerMaskView()
 
     // MARK: - State
 
     private var controlsVisible = false
     private var hideWorkItem: DispatchWorkItem?
     private var observations: [NSKeyValueObservation] = []
-    private var keyboardOverlap: CGFloat = 0
     private var lastScrollOffset: CGFloat = 0
 
     private var controlsTop: NSLayoutConstraint!
@@ -81,7 +81,6 @@ final class BrowserViewController: UIViewController {
         super.viewDidLoad()
 
         view.backgroundColor = .black
-        enlargeURLCache()
 
         buildWebView()
         buildOverlay()
@@ -101,7 +100,7 @@ final class BrowserViewController: UIViewController {
 
         if !UserDefaults.standard.bool(forKey: Key.seenGuide) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                self?.showGuide(firstRun: true)
+                self?.showGuide()
             }
         }
     }
@@ -109,22 +108,24 @@ final class BrowserViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         applyCornerRadius()
+
+        // Keep the parked position in step with the bar's height as the safe-area
+        // inset settles. Guarded, or assigning it here would dirty layout every pass.
+        if !controlsVisible, controlsTop.constant != hiddenOffset {
+            controlsTop.constant = hiddenOffset
+        }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        // The bar sizes itself against the inset it is *told about*, not its own
+        // safeAreaInsets - those depend on where the bar currently sits, and while
+        // it is parked off-screen they feed back into its height.
+        controls.topInset = view.safeAreaInsets.top
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-    }
-
-    // MARK: - Performance
-
-    /// WKWebView shares URLCache. The default disk allowance is small for a page that is
-    /// mostly large images, so re-reading a chapter refetches everything.
-    private func enlargeURLCache() {
-        URLCache.shared = URLCache(
-            memoryCapacity: 64 * 1024 * 1024,
-            diskCapacity: 512 * 1024 * 1024,
-            diskPath: "slimread-cache"
-        )
     }
 
     // MARK: - Build
@@ -148,8 +149,6 @@ final class BrowserViewController: UIViewController {
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.showsVerticalScrollIndicator = false
         webView.scrollView.decelerationRate = .normal
-        webView.layer.cornerCurve = .continuous
-        webView.layer.masksToBounds = true
         view.addSubview(webView)
 
         webTop = webView.topAnchor.constraint(equalTo: view.topAnchor)
@@ -175,9 +174,13 @@ final class BrowserViewController: UIViewController {
         ))
 
         if !tweaks.js.isEmpty {
+            // Document start, not end: the script marks reader pages on <html> and that
+            // mark gates the full-bleed CSS. Arriving at document end means the page
+            // gets one paint with the wrong layout rules first. The script waits for
+            // DOMContentLoaded itself before touching anything below <html>.
             controller.addUserScript(WKUserScript(
                 source: tweaks.js,
-                injectionTime: .atDocumentEnd,
+                injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
             ))
         }
@@ -186,6 +189,10 @@ final class BrowserViewController: UIViewController {
     }
 
     private func buildOverlay() {
+        // Above the page, below everything else.
+        cornerMask.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(cornerMask)
+
         progress.translatesAutoresizingMaskIntoConstraints = false
         progress.progressTintColor = .white
         progress.trackTintColor = .clear
@@ -200,9 +207,14 @@ final class BrowserViewController: UIViewController {
         controls.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(controls)
 
-        controlsTop = controls.topAnchor.constraint(equalTo: view.topAnchor, constant: -260)
+        controlsTop = controls.topAnchor.constraint(equalTo: view.topAnchor, constant: hiddenOffset)
 
         NSLayoutConstraint.activate([
+            cornerMask.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            cornerMask.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            cornerMask.topAnchor.constraint(equalTo: view.topAnchor),
+            cornerMask.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
             topTapZone.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topTapZone.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             topTapZone.topAnchor.constraint(equalTo: view.topAnchor),
@@ -230,9 +242,12 @@ final class BrowserViewController: UIViewController {
             self.load(self.homeURL)
         }
         controls.onToggleFullBleed = { [weak self] in self?.fullBleed.toggle() }
+        // The bar covers the top tap zone once it is open, so tapping the top again
+        // never reached the zone underneath - which is what the guide tells you to do.
+        controls.onToggle = { [weak self] in self?.toggleControls() }
         controls.onGuide = { [weak self] in
             self?.setControls(visible: false)
-            self?.showGuide(firstRun: false)
+            self?.showGuide()
         }
         controls.onSubmit = { [weak self] text in
             guard let self, let url = Self.resolve(text) else { return }
@@ -254,17 +269,34 @@ final class BrowserViewController: UIViewController {
 
     // MARK: - Corner radius
     //
-    // Squares off against rounded display corners otherwise. UIScreen knows the real
-    // radius but only privately, so fall back to a sensible value per device shape.
+    // Squares off against rounded display corners otherwise.
+    //
+    // This used to set cornerRadius + masksToBounds on the web view itself, which does
+    // not work: WKWebView renders in another process and hosts the result in a remote
+    // layer tree, so layer masking on it clips the scroll view background but not the
+    // page. CornerMaskView paints black over the corners instead, which is unaffected
+    // by how the content underneath is composited.
 
     private func applyCornerRadius() {
-        let radius: CGFloat
-        if let known = UIScreen.main.value(forKey: "_displayCornerRadius") as? CGFloat, known > 0 {
-            radius = known
-        } else {
-            radius = view.safeAreaInsets.top > 24 ? 47 : 0
+        cornerMask.radius = fullBleed ? Self.displayCornerRadius(safeAreaTop: view.safeAreaInsets.top) : 0
+    }
+
+    /// UIScreen knows the real radius but only privately, so fall back to a value keyed
+    /// off the shape of the safe area when that is unavailable.
+    private static func displayCornerRadius(safeAreaTop: CGFloat) -> CGFloat {
+        // NSNumber rather than CGFloat: the KVC call returns a boxed number, and the
+        // direct bridge to CGFloat is not something to depend on.
+        if let boxed = UIScreen.main.value(forKey: "_displayCornerRadius") as? NSNumber {
+            let known = CGFloat(boxed.doubleValue)
+            if known > 0 { return known }
         }
-        webView.layer.cornerRadius = fullBleed ? radius : 0
+
+        switch safeAreaTop {
+        case 55...:  return 55   // Dynamic Island
+        case 45...:  return 47   // notch, 12/13/14 sized
+        case 30...:  return 39   // notch, X / XS / 11 Pro
+        default:     return 0    // home button, square corners
+        }
     }
 
     // MARK: - Layout modes
@@ -292,6 +324,13 @@ final class BrowserViewController: UIViewController {
 
     // MARK: - Controls show / hide
 
+    /// How far up the bar has to travel to be fully off-screen. Derived from its own
+    /// height rather than a fixed -260, with a floor so the very first layout pass -
+    /// before the safe-area inset is known - still parks it out of sight.
+    private var hiddenOffset: CGFloat {
+        -max(controls.intrinsicContentSize.height + 12, 180)
+    }
+
     @objc private func toggleControls() {
         setControls(visible: !controlsVisible)
     }
@@ -300,7 +339,7 @@ final class BrowserViewController: UIViewController {
         controlsVisible = visible
         if !visible { controls.field.resignFirstResponder() }
 
-        controlsTop.constant = visible ? 0 : -260
+        controlsTop.constant = visible ? 0 : hiddenOffset
 
         UIView.animate(
             withDuration: 0.28,
@@ -327,7 +366,7 @@ final class BrowserViewController: UIViewController {
 
     // MARK: - Guide
 
-    private func showGuide(firstRun: Bool) {
+    private func showGuide() {
         let guide = GuideOverlayView()
         guide.onDismiss = { [weak guide] in
             UserDefaults.standard.set(true, forKey: Key.seenGuide)
@@ -340,8 +379,6 @@ final class BrowserViewController: UIViewController {
 
     private func observeKeyboard() {
         let centre = NotificationCenter.default
-        centre.addObserver(self, selector: #selector(keyboardFrameChanged(_:)),
-                           name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         centre.addObserver(self, selector: #selector(keyboardWillHide),
                            name: UIResponder.keyboardWillHideNotification, object: nil)
         centre.addObserver(self, selector: #selector(saveState),
@@ -350,14 +387,10 @@ final class BrowserViewController: UIViewController {
                            name: UIApplication.didBecomeActiveNotification, object: nil)
     }
 
-    @objc private func keyboardFrameChanged(_ note: Notification) {
-        guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-        let converted = view.convert(frame, from: nil)
-        keyboardOverlap = max(0, view.bounds.maxY - converted.minY)
-    }
-
+    /// The bar sits at the top, so the keyboard never overlaps it - there is nothing to
+    /// move out of the way. All this needs to do is restart the auto-hide countdown,
+    /// which was suspended while the field held focus.
     @objc private func keyboardWillHide() {
-        keyboardOverlap = 0
         if controlsVisible { scheduleAutoHide() }
     }
 
@@ -372,12 +405,11 @@ final class BrowserViewController: UIViewController {
         TweaksLoader.refresh { [weak self] updated in
             guard let self, let updated else { return }
 
-            // Swap the stylesheet live, then re-register scripts so the next page load
-            // gets them at document start too.
+            // The stylesheet genuinely swaps live. The script does not - it guards on
+            // window.__slimread and the current page has already run a copy - so
+            // re-registering below is what actually puts a new tweaks.js into effect,
+            // from the next page load onward.
             self.webView.evaluateJavaScript(TweaksLoader.cssInstallScript(updated.css))
-            if !updated.js.isEmpty {
-                self.webView.evaluateJavaScript(updated.js)
-            }
 
             let controller = self.webView.configuration.userContentController
             controller.removeAllUserScripts()
@@ -389,7 +421,7 @@ final class BrowserViewController: UIViewController {
             if !updated.js.isEmpty {
                 controller.addUserScript(WKUserScript(
                     source: updated.js,
-                    injectionTime: .atDocumentEnd,
+                    injectionTime: .atDocumentStart,
                     forMainFrameOnly: true
                 ))
             }
@@ -491,7 +523,13 @@ extension BrowserViewController: WKNavigationDelegate {
         }
 
         if let scheme = url.scheme?.lowercased(), scheme != "http", scheme != "https", scheme != "about" {
-            if UIApplication.shared.canOpenURL(url) {
+            // Only hand off to another app when the reader actually asked for it. An ad
+            // frame redirecting itself to a deep link should not be able to yank you out
+            // of the app on its own.
+            let userDriven = navigationAction.navigationType == .linkActivated
+                || navigationAction.navigationType == .formSubmitted
+            if userDriven, navigationAction.targetFrame?.isMainFrame ?? true,
+               UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url)
             }
             decisionHandler(.cancel)
@@ -533,5 +571,57 @@ extension BrowserViewController: UIGestureRecognizerDelegate {
         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool {
         true
+    }
+}
+
+// MARK: - Corner mask
+
+/// Paints black into the four corners so the page follows the curve of the display.
+///
+/// Drawn on top rather than masking the web view: WKWebView composites its content in
+/// another process, and a corner radius on its layer does not clip the rendered page.
+/// Painting over it is unaffected by any of that.
+private final class CornerMaskView: UIView {
+
+    var radius: CGFloat = 0 {
+        didSet {
+            guard radius != oldValue else { return }
+            setNeedsLayout()
+        }
+    }
+
+    private let shape = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        shape.fillRule = .evenOdd
+        shape.fillColor = UIColor.black.cgColor
+        layer.addSublayer(shape)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        // No implicit animation - this follows rotation, and the fill should land with
+        // the new bounds rather than sweep across the screen to reach them.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        shape.frame = bounds
+
+        if radius > 0 {
+            // Everything outside the rounded rect, via the even-odd rule.
+            let path = UIBezierPath(rect: bounds)
+            path.append(UIBezierPath(roundedRect: bounds, cornerRadius: radius))
+            shape.path = path.cgPath
+        } else {
+            shape.path = nil
+        }
+        CATransaction.commit()
     }
 }

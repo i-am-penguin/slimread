@@ -3,6 +3,7 @@ import UIKit
 /// Shown once on first launch, and any time the ? button is tapped.
 final class GuideOverlayView: UIView {
 
+    private let scroll = UIScrollView()
     private let card = UIView()
     var onDismiss: (() -> Void)?
 
@@ -43,8 +44,16 @@ final class GuideOverlayView: UIView {
     private func setUp() {
         backgroundColor = UIColor.black.withAlphaComponent(0.82)
 
+        // Five rows plus a title and a button do not fit in landscape, or at large
+        // Dynamic Type. Without this the "Got it" button ends up off-screen and there
+        // is no other way out of the overlay.
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.showsVerticalScrollIndicator = false
+        scroll.contentInsetAdjustmentBehavior = .never
+        addSubview(scroll)
+
         card.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(card)
+        scroll.addSubview(card)
 
         let title = UILabel()
         title.text = "How to use SlimRead"
@@ -75,15 +84,32 @@ final class GuideOverlayView: UIView {
         stack.setCustomSpacing(28, after: items.isEmpty ? title : stack.arrangedSubviews[stack.arrangedSubviews.count - 2])
 
         NSLayoutConstraint.activate([
-            card.centerYAnchor.constraint(equalTo: centerYAnchor),
-            card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
-            card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+
+            card.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 24),
+            card.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
+            card.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 24),
+            card.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -24),
+            card.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48),
 
             stack.topAnchor.constraint(equalTo: card.topAnchor),
             stack.bottomAnchor.constraint(equalTo: card.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: card.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: card.trailingAnchor)
         ])
+    }
+
+    /// Keeps the card centred while it fits, and lets it scroll from the top once it
+    /// does not. Simpler than fighting constraint priorities for the same effect.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let slack = max(0, scroll.bounds.height - scroll.contentSize.height) / 2
+        if scroll.contentInset.top != slack {
+            scroll.contentInset = UIEdgeInsets(top: slack, left: 0, bottom: 0, right: 0)
+        }
     }
 
     private func makeRow(_ item: Item) -> UIView {

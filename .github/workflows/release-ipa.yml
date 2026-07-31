@@ -1,7 +1,7 @@
 name: Publish release
 
-# Builds the app, attaches the IPA to a GitHub Release, and refreshes source.json
-# so AltStore/SideStore on the phone sees the update and can install it with one tap.
+# Builds the app and attaches the IPA to a GitHub Release. Install it with
+# Sideloadly - "Publish Update.bat" can fetch it back down for you.
 #
 # Run it: Actions -> Publish release -> Run workflow -> type a version like 1.1
 
@@ -35,6 +35,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION=${{ inputs.version }} \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             build
 
       - name: Package into an .ipa
@@ -42,7 +43,7 @@ jobs:
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/SlimRead.app Payload/
           zip -qry SlimRead.ipa Payload
-          echo "IPA_SIZE=$(stat -f%z SlimRead.ipa)" >> $GITHUB_ENV
+          ls -lh SlimRead.ipa
 
       - name: Create the release
         env:

@@ -14,6 +14,7 @@ final class ControlBarView: UIView {
     var onGuide: (() -> Void)?
     var onSubmit: ((String) -> Void)?
     var onInteraction: (() -> Void)?
+    var onToggle: (() -> Void)?
 
     // MARK: - Subviews
 
@@ -24,6 +25,10 @@ final class ControlBarView: UIView {
     private let homeButton = ControlBarView.makeButton("house")
     private let fullBleedButton = ControlBarView.makeButton("arrow.up.left.and.arrow.down.right")
     private let guideButton = ControlBarView.makeButton("questionmark.circle")
+
+    /// The empty strip above the controls - the notch / Dynamic Island area, once the
+    /// bar is open. Tapping it closes the bar again.
+    private let headerTapZone = UIView()
 
     let field: UITextField = {
         let f = UITextField()
@@ -53,6 +58,19 @@ final class ControlBarView: UIView {
 
     /// Content height below the safe-area inset.
     private let barHeight: CGFloat = 92
+
+    /// Set by the view controller from *its* safe-area inset.
+    ///
+    /// Reading `safeAreaInsets` here instead looks equivalent but is not: a view's own
+    /// insets are derived from where it sits in its superview and are clamped to its
+    /// bounds. While the bar is parked off-screen it is entirely outside the safe area,
+    /// so its inset grows to match its height - which then grows the height, and so on.
+    var topInset: CGFloat = 0 {
+        didSet {
+            guard topInset != oldValue else { return }
+            invalidateIntrinsicContentSize()
+        }
+    }
 
     // MARK: - Init
 
@@ -86,6 +104,13 @@ final class ControlBarView: UIView {
         column.translatesAutoresizingMaskIntoConstraints = false
         addSubview(column)
 
+        headerTapZone.translatesAutoresizingMaskIntoConstraints = false
+        headerTapZone.backgroundColor = .clear
+        addSubview(headerTapZone)
+        headerTapZone.addGestureRecognizer(
+            UITapGestureRecognizer(target: self, action: #selector(tapHeader))
+        )
+
         NSLayoutConstraint.activate([
             blur.leadingAnchor.constraint(equalTo: leadingAnchor),
             blur.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -96,7 +121,12 @@ final class ControlBarView: UIView {
             column.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
             column.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
 
-            field.heightAnchor.constraint(equalToConstant: 36)
+            field.heightAnchor.constraint(equalToConstant: 36),
+
+            headerTapZone.leadingAnchor.constraint(equalTo: leadingAnchor),
+            headerTapZone.trailingAnchor.constraint(equalTo: trailingAnchor),
+            headerTapZone.topAnchor.constraint(equalTo: topAnchor),
+            headerTapZone.bottomAnchor.constraint(equalTo: column.topAnchor)
         ])
 
         field.delegate = self
@@ -115,12 +145,7 @@ final class ControlBarView: UIView {
     // Grows upward to cover the status-bar region so the blur reaches the screen edge.
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: barHeight + safeAreaInsets.top)
-    }
-
-    override func safeAreaInsetsDidChange() {
-        super.safeAreaInsetsDidChange()
-        invalidateIntrinsicContentSize()
+        CGSize(width: UIView.noIntrinsicMetric, height: barHeight + topInset)
     }
 
     // MARK: - State in
@@ -152,6 +177,7 @@ final class ControlBarView: UIView {
     @objc private func tapHome() { onInteraction?(); onHome?() }
     @objc private func tapFullBleed() { onInteraction?(); onToggleFullBleed?() }
     @objc private func tapGuide() { onInteraction?(); onGuide?() }
+    @objc private func tapHeader() { onToggle?() }
 
     // MARK: - Helpers
 

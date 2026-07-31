@@ -8,9 +8,16 @@
    Deliberately defensive: selectors are broad because site markup changes.
    If something here is too aggressive, delete the block - worst case the page
    renders the way it does in Safari.
+
+   IMPORTANT: the width-flattening rules are scoped to `.slimread-reader`,
+   which tweaks.js puts on <html> only on episode/viewer pages. They must stay
+   that way. Applied site-wide they hit the cover-thumbnail grid on the home
+   and series pages, forcing each card to full width while the image inside
+   keeps its own size - which shows up as small thumbnails with a wide black
+   border around them.
    =========================================================================== */
 
-/* --- Kill the white letterboxing around episode art ---------------------- */
+/* --- Everywhere ---------------------------------------------------------- */
 
 html, body {
     background: #000 !important;
@@ -19,51 +26,10 @@ html, body {
     overflow-x: hidden !important;
 }
 
-/* Containers commonly used to constrain reading width. */
-.container,
-.content,
-.viewer,
-.viewer__body,
-.viewer-body,
-.episode,
-.episode__content,
-.ep-content,
-main,
-article,
-[class*="viewer"],
-[class*="Viewer"],
-[class*="episode"],
-[class*="Episode"] {
-    max-width: 100% !important;
-    width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    background: #000 !important;
-}
-
-/* The art itself: edge to edge, no gaps between panels. */
+/* Never let an image overflow its column. Safe on any page. */
 img {
     max-width: 100% !important;
 }
-
-.viewer img,
-.viewer__body img,
-[class*="viewer"] img,
-[class*="episode"] img,
-article img {
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    border: 0 !important;
-    vertical-align: top !important;
-}
-
-/* --- Site chrome that competes with the artwork -------------------------- */
 
 /* Cookie banners, app-install interstitials, floating promos. */
 [class*="cookie"],
@@ -76,20 +42,33 @@ article img {
     display: none !important;
 }
 
-/* The persistent bottom navigation bar is handled by tweaks.js, which slides
-   it away while you scroll and brings it back at the end of the chapter.
-   Uncomment to remove it outright instead. */
+/* --- The site's own fixed bars ------------------------------------------- */
 /*
-[class*="bottom-bar"],
-[class*="bottomBar"],
-[class*="BottomBar"],
-[class*="ep-nav"],
-[class*="episode-nav"] {
-    display: none !important;
-}
+   In full-bleed mode the web view runs to the physical edge of the display,
+   so anything the site pins to the top or bottom is clipped by the rounded
+   corners and sits under the Dynamic Island. tweaks.js tags those bars and
+   forces viewport-fit=cover so these env() insets resolve to real numbers.
+
+   The horizontal padding is what keeps the leftmost and rightmost controls
+   out of the corner curve - the insets themselves are zero in portrait.
 */
 
-/* Smooth the transition when tweaks.js hides it. */
+.slimread-fixed-top,
+.slimread-fixed-bottom {
+    box-sizing: border-box !important;
+    padding-left: max(env(safe-area-inset-left, 0px), 16px) !important;
+    padding-right: max(env(safe-area-inset-right, 0px), 16px) !important;
+}
+
+.slimread-fixed-top {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+}
+
+.slimread-fixed-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
+}
+
+/* Smooth the transition when tweaks.js slides the bottom bar away. */
 .slimread-autohide {
     transition: transform 0.22s ease, opacity 0.22s ease !important;
 }
@@ -99,3 +78,75 @@ article img {
     opacity: 0 !important;
     pointer-events: none !important;
 }
+
+/* --- Reader pages only --------------------------------------------------- */
+/*
+   Kill the white letterboxing around episode art. Scoped to .slimread-reader.
+   Containers commonly used to constrain reading width.
+*/
+
+.slimread-reader .container,
+.slimread-reader .content,
+.slimread-reader .viewer,
+.slimread-reader .viewer__body,
+.slimread-reader .viewer-body,
+.slimread-reader .episode,
+.slimread-reader .episode__content,
+.slimread-reader .ep-content,
+.slimread-reader main,
+.slimread-reader article,
+.slimread-reader [class*="viewer"],
+.slimread-reader [class*="Viewer"],
+.slimread-reader [class*="episode"],
+.slimread-reader [class*="Episode"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    background: #000 !important;
+}
+
+/*
+   The art itself: edge to edge, no gaps between panels.
+
+   `:not()` keeps avatars, rating stars and share icons out of it - they live
+   inside the same containers and were being stretched to the full screen width.
+*/
+.slimread-reader .viewer img,
+.slimread-reader .viewer__body img,
+.slimread-reader [class*="viewer"] img,
+.slimread-reader [class*="episode"] img,
+.slimread-reader article img {
+    display: block !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    vertical-align: top !important;
+}
+
+/* Full width for the panels themselves, which are the wide images. Anything
+   small enough to be an icon keeps its natural size. */
+.slimread-reader .viewer img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
+.slimread-reader .viewer__body img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
+.slimread-reader [class*="viewer"] img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
+.slimread-reader [class*="episode"] img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
+.slimread-reader article img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]) {
+    width: 100% !important;
+}
+
+/* The persistent bottom navigation bar is handled by tweaks.js, which slides
+   it away while you scroll and brings it back at the end of the chapter.
+   Uncomment to remove it outright instead. */
+/*
+.slimread-reader [class*="bottom-bar"],
+.slimread-reader [class*="bottomBar"],
+.slimread-reader [class*="BottomBar"],
+.slimread-reader [class*="ep-nav"],
+.slimread-reader [class*="episode-nav"] {
+    display: none !important;
+}
+*/
