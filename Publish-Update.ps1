@@ -92,7 +92,13 @@ try {
     }
 
     & git add -A | Out-Null
-    & git commit -m "SlimRead update" --allow-empty | Out-Null
+
+    $summary = (& git diff --cached --shortstat 2>$null)
+    if ($summary) { Say "changes: $($summary.Trim())" } else { Say 'no file changes' }
+
+    $message = Read-Host '  Commit message [SlimRead update]'
+    if (-not $message) { $message = 'SlimRead update' }
+    & git commit -m $message --allow-empty | Out-Null
     & git push
     if ($LASTEXITCODE -ne 0) {
         Stop-With 'Push failed' @(
@@ -109,14 +115,45 @@ try {
 
     if (-not (Ask 'Publish a new app build too? (only for native code changes)')) {
         Write-Host ''
-        Say 'Done. Tweaks are live.' Green
+        Say 'Done - committed, pushed, and tweaks are live on every installed copy.' Green
         Write-Host ''
         exit 0
     }
 
     Step 'Publishing a release'
-    $version = Read-Host '  Version number (e.g. 1.1)'
+
+    # Show what is already out there, and offer the obvious next number.
+    $current = (& gh release view --json tagName --jq '.tagName' 2>$null)
+    $suggested = '1.0'
+
+    if ($LASTEXITCODE -eq 0 -and $current) {
+        $current = $current.Trim()
+        Say "currently published:  $current"
+        $parts = ($current -replace '^v', '') -split '\.'
+        if ($parts[-1] -match '^\d+$') {
+            $parts[-1] = [string]([int]$parts[-1] + 1)
+            $suggested = ($parts -join '.')
+        } else {
+            $suggested = $current -replace '^v', ''
+        }
+    } else {
+        Say 'no releases published yet - this will be the first'
+    }
+
+    $version = Read-Host "  New version number [$suggested]"
+    if (-not $version) { $version = $suggested }
+    $version = ($version.Trim() -replace '^v', '')
     if (-not $version) { Stop-With 'No version given' @('Run again and enter something like 1.1') }
+
+    # A tag cannot be reused, so catch it here rather than after a 4-minute build.
+    & gh release view "v$version" *> $null
+    if ($LASTEXITCODE -eq 0) {
+        Stop-With "Version $version is already published" @(
+            "Pick a number that is not taken - $suggested is free.",
+            'Git tags cannot be reused, so GitHub rejects duplicates.'
+        )
+    }
+    Say "publishing v$version"
 
     & gh workflow run 'release-ipa.yml' -f version=$version
     if ($LASTEXITCODE -ne 0) {
