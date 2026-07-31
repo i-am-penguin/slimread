@@ -23,6 +23,20 @@ A native app has no such restriction. A view controller returning `true` from
 useful application built around that fact: a single `WKWebView`, no permanent chrome, three
 Swift files.
 
+### On platform parity
+
+This is not an iOS limitation, and it is not an Apple restriction. As of July 2026:
+
+- The **Tapas Android app** provides an immersive reading mode that hides the status bar.
+  The iOS app does not.
+- The **WEBTOON iOS app** hides the status bar while reading, on the same operating system
+  and the same public API used here.
+
+The capability is four lines of UIKit, shown in full below. A competitor ships it on iOS
+today, and Tapas already ships it on Android — so neither the platform nor the design pattern
+is the obstacle. This repository exists because the feature is absent from the iOS client,
+not because it is difficult.
+
 ## Features
 
 - **No status bar, portrait or landscape.** Documented UIKit API, no orientation spoofing.
