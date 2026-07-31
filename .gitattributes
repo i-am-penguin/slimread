@@ -1,0 +1,8 @@
+# The Windows tooling is packaging, not the project. Keep it out of the language
+# statistics so the bar reflects the app itself.
+*.ps1 linguist-vendored
+*.bat linguist-vendored
+
+# These two are the point of the project, not vendored assets - count them.
+tweaks/*.js linguist-detectable
+tweaks/*.css linguist-detectable
