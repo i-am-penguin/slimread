@@ -1,0 +1,50 @@
+name: Build unsigned IPA
+
+# Builds SlimRead on a free GitHub-hosted macOS runner and uploads an unsigned
+# .ipa as a workflow artifact. You then sign + install it with Sideloadly or
+# AltStore from Windows. No Mac required on your end.
+#
+# Run it: Actions tab -> "Build unsigned IPA" -> Run workflow.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show available Xcode
+        run: xcodebuild -version
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild \
+            -project SlimRead.xcodeproj \
+            -scheme SlimRead \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Package into an .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/SlimRead.app Payload/
+          zip -qry SlimRead.ipa Payload
+          ls -lh SlimRead.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlimRead-ipa
+          path: SlimRead.ipa
+          if-no-files-found: error
