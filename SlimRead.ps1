@@ -143,19 +143,24 @@ if ($driversPresent -and -not $storeItunes) {
             Start-Process 'https://www.apple.com/itunes/download/win64'
         }
         try {
-            Get-File -Url 'https://updates.cdn-apple.com/windows/icloud/iCloudSetup.exe' -Dest $icloud -Label 'iCloud'
+            Get-File -Url 'https://updates.cdn-apple.com/2020/windows/001-39935-20200911-1A70AA56-F448-11EA-8CC0-99D41950005E/iCloudSetup.exe' -Dest $icloud -Label 'iCloud'
             Info 'Starting the iCloud installer.'
             Start-Process $icloud -Wait
         } catch {
-            Warn 'Automatic download failed. Get it manually:'
-            Info '  https://support.apple.com/en-us/HT204283'
-            Start-Process 'https://support.apple.com/en-us/HT204283'
+            Warn 'Automatic download failed.'
+            Info '  Apple removed the standalone iCloud page, so use the link Sideloadly'
+            Info '  publishes: sideloadly.io, under "Before you install" > Web iCloud.'
+            Info '  Do NOT install iCloud from the Microsoft Store - it will not work.'
+            Info '  You can also skip iCloud entirely and use Remote Anisette instead.'
+            Start-Process 'https://sideloadly.io'
         }
     } else {
         Info 'Install them yourself before continuing:'
         Info '  iTunes  https://www.apple.com/itunes/download/win64'
-        Info '  iCloud  https://support.apple.com/en-us/HT204283'
-        Info 'IMPORTANT: from apple.com, NOT the Microsoft Store.'
+        Info '  iCloud  sideloadly.io > "Before you install" > Web iCloud'
+        Info 'IMPORTANT: the desktop versions, NOT the Microsoft Store ones.'
+        Info 'Apple retired the iCloud download page, which is why the link is'
+        Info 'Sideloadly rather than Apple. iCloud is optional if you use Remote Anisette.'
     }
 }
 

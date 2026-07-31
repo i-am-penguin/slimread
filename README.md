@@ -373,7 +373,7 @@ Microsoft Store versions ship different drivers.
 
 Uninstall the Store versions, then install
 [iTunes 64-bit](https://www.apple.com/itunes/download/win64) and
-[iCloud](https://support.apple.com/en-us/HT204283) from Apple. Confirm the phone appears in
+iCloud (from [sideloadly.io](https://sideloadly.io), under *Before you install*) from Apple. Confirm the phone appears in
 iTunes itself — if iTunes cannot see it, nothing else will. Also check you are using a data
 cable rather than a charge-only one, and that you tapped **Trust This Computer**.
 
