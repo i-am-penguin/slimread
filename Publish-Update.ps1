@@ -60,6 +60,27 @@ Push-Location $ProjectDir
 try {
     Step 'Pushing your changes'
 
+    # A stale index.lock blocks every git command. It is left behind when a git
+    # process is killed, a tool crashes, or an editor holds the repo open.
+    # Safe to clear as long as nothing is actually using it right now.
+    $lock = Join-Path $ProjectDir '.git\index.lock'
+    if (Test-Path $lock) {
+        if (Get-Process git -ErrorAction SilentlyContinue) {
+            Stop-With 'A git process is already running' @(
+                'Wait for it to finish, or close any editor with this folder open,',
+                'then run this file again.'
+            )
+        }
+        Remove-Item $lock -Force -ErrorAction SilentlyContinue
+        if (Test-Path $lock) {
+            Stop-With 'Could not clear a stale git lock file' @(
+                "Delete it by hand:  Remove-Item `"$lock`" -Force",
+                'Then run this file again.'
+            )
+        }
+        Say 'cleared a stale git lock'
+    }
+
     # Files earlier versions of this project shipped and no longer uses.
     foreach ($old in 'Build-SlimRead.ps1', 'RUN ME - Build SlimRead.bat', 'Build and Download IPA.bat',
                      '.write_test', '__t', 'SlimRead.swiftpm', 'source.json') {

@@ -1,3 +1,14 @@
+# Normalise line endings so Windows scripts stop showing as modified when they
+# are not. PowerShell and batch files must be CRLF to behave on Windows.
+* text=auto
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.swift text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+
 # The Windows tooling is packaging, not the project. Keep it out of the language
 # statistics so the bar reflects the app itself.
 *.ps1 linguist-vendored

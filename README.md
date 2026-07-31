@@ -420,6 +420,20 @@ development app on a phone they physically hold, which is why it needs your pass
 reboot. Ad-hoc and TestFlight distribution avoid the requirement, but both need the paid
 Apple Developer account.
 
+### "Unable to create '.git/index.lock': File exists"
+
+A stale lock file. Git creates it while writing to the index and removes it after; if a git
+process is killed, or another tool has the folder open, it survives and blocks every
+subsequent git command.
+
+```powershell
+Remove-Item .git\index.lock -Force
+```
+
+Nothing is damaged — git simply refuses to touch the index while it thinks another process
+holds it. `Publish Update.bat` now clears stale locks by itself, after checking no git
+process is actually running.
+
 ### The app stopped opening after a week
 
 The free certificate expired. Run `SlimRead.bat` again and re-sideload. App data, logins and
