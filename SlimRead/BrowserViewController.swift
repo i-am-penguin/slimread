@@ -30,7 +30,6 @@ final class BrowserViewController: UIViewController {
     private var webView: WKWebView!
     private let controls = ControlBarView()
     private let topTapZone = UIView()
-    private let progress = UIProgressView(progressViewStyle: .bar)
     private let cornerMask = CornerMaskView()
 
     // MARK: - State
@@ -193,12 +192,6 @@ final class BrowserViewController: UIViewController {
         cornerMask.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(cornerMask)
 
-        progress.translatesAutoresizingMaskIntoConstraints = false
-        progress.progressTintColor = .white
-        progress.trackTintColor = .clear
-        progress.alpha = 0
-        view.addSubview(progress)
-
         // Invisible strip across the top - the notch / Dynamic Island sits inside it.
         topTapZone.translatesAutoresizingMaskIntoConstraints = false
         topTapZone.backgroundColor = .clear
@@ -224,10 +217,6 @@ final class BrowserViewController: UIViewController {
             controls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             controlsTop,
 
-            progress.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            progress.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            progress.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            progress.heightAnchor.constraint(equalToConstant: 2)
         ])
 
         wireControls()
@@ -467,22 +456,6 @@ final class BrowserViewController: UIViewController {
 
     private func observeWebView() {
         observations = [
-            webView.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in
-                self?.progress.setProgress(Float(webView.estimatedProgress), animated: true)
-            },
-            webView.observe(\.isLoading, options: [.new]) { [weak self] webView, _ in
-                guard let self else { return }
-                if webView.isLoading {
-                    self.progress.setProgress(0, animated: false)
-                    UIView.animate(withDuration: 0.15) { self.progress.alpha = 1 }
-                } else {
-                    UIView.animate(withDuration: 0.3, delay: 0.15) {
-                        self.progress.alpha = 0
-                    } completion: { _ in
-                        self.progress.setProgress(0, animated: false)
-                    }
-                }
-            },
             webView.observe(\.url, options: [.new]) { [weak self] webView, _ in
                 self?.controls.setURLText(webView.url?.absoluteString ?? "")
                 self?.saveState()

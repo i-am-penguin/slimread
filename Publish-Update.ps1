@@ -164,10 +164,11 @@ try {
             Say 'no releases published yet - this will be the first'
         }
 
-        $version = Read-Host "  New version number [$suggested]"
-        if (-not $version) { $version = $suggested }
-        $version = ($version.Trim() -replace '^v', '')
-        if (-not $version) { Stop-With 'No version given' @('Run again and enter something like 1.1') }
+        # Auto-increment. Set SLIMREAD_VERSION before running to override, e.g.
+        #   $env:SLIMREAD_VERSION = '2.0'
+        # A prompt here was answered with the suggested number every single time.
+        $version = if ($env:SLIMREAD_VERSION) { $env:SLIMREAD_VERSION.Trim() -replace '^v', '' } else { $suggested }
+        Say "new version:          $version" Green
 
         # A tag cannot be reused, so catch it here rather than after a 4-minute build.
         & gh release view "v$version" 2>&1 | Out-Null

@@ -35,7 +35,7 @@
        again until this string changes. Set SHOW_BADGE to false to silence it.
        --------------------------------------------------------------------- */
 
-    var TWEAKS_VERSION = '1.06 b1 01 Aug 03:38';
+    var TWEAKS_VERSION = '1.07 b2 01 Aug 03:47';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -99,6 +99,46 @@
             if (!/viewport-fit\s*=\s*cover/i.test(content)) {
                 metas[i].setAttribute('content', content.replace(/\s*,\s*$/, '') + ', viewport-fit=cover');
             }
+        }
+    }
+
+    /* --- Rounded display corners ----------------------------------------- */
+
+    // Measured, not guessed: read the real safe-area inset off the device and map
+    // it to that device's display radius. A table of screen sizes goes stale with
+    // every new phone; the inset does not.
+    function measureCornerRadius() {
+        if (!document.body) return 0;
+
+        var probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;top:0;left:0;width:0;' +
+                              'height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
+        document.body.appendChild(probe);
+        var inset = probe.getBoundingClientRect().height;
+        if (probe.parentNode) probe.parentNode.removeChild(probe);
+
+        if (inset >= 51) return 55;     // Dynamic Island
+        if (inset >= 44) return 47;     // notch, 12 / 13 / 14 sized
+        if (inset >= 30) return 39;     // notch, X / XS / 11 Pro
+        return 0;                       // home button - square display
+    }
+
+    var CORNERS = ['tl', 'tr', 'bl', 'br'];
+
+    function installCorners() {
+        if (!document.body) return;
+
+        var radius = measureCornerRadius();
+        root.style.setProperty('--slimread-corner', radius + 'px');
+        if (!radius) return;
+
+        for (var i = 0; i < CORNERS.length; i++) {
+            var name = 'slimread-corner-' + CORNERS[i];
+            if (document.getElementById(name)) continue;
+            var el = document.createElement('div');
+            el.id = name;
+            el.className = 'slimread-corner ' + name;
+            document.body.appendChild(el);
         }
     }
 
@@ -296,6 +336,7 @@
     function sweep() {
         markReader();
         coverViewport();
+        installCorners();
         promoteAll();
         bars = tagFixedBars();
     }

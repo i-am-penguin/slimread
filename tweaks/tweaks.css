@@ -20,10 +20,83 @@
 /* --- Everywhere ---------------------------------------------------------- */
 
 html, body {
+    margin: 0 !important;
+    overflow-x: hidden !important;
+}
+
+/*
+   Black is for the reader only.
+
+   Forcing it site-wide was the cover-thumbnail bug: tapas.io has a white body and
+   fully transparent containers around every cover, so the normal grid spacing that
+   used to blend into white suddenly read as a thick black border round each one.
+   The thumbnails never changed size - everything behind them went black.
+*/
+.slimread-reader,
+.slimread-reader body {
     background: #000 !important;
+    padding: 0 !important;
+}
+
+/* --- Rounded display corners --------------------------------------------
+   The web view runs to the physical edge in full-bleed, so page content is cut
+   by the display's corner curve. Two halves to fixing that:
+
+     1. Keep content out of the corners  - the safe-area padding below.
+     2. Make the cut look deliberate     - the four corner arcs.
+
+   Both live here rather than in native code so they apply to every installed
+   copy on the next launch, with no sideload. --slimread-corner is measured on
+   the device by tweaks.js.
+   ------------------------------------------------------------------------ */
+
+:root {
+    --slimread-corner: 0px;
+}
+
+/* Listing pages: hold content inside the safe rect, which is also clear of the
+   corner arcs. The reader is left alone - artwork is meant to bleed. */
+html:not(.slimread-reader) body {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    box-sizing: border-box !important;
+}
+
+.slimread-corner {
+    position: fixed !important;
+    width: var(--slimread-corner) !important;
+    height: var(--slimread-corner) !important;
+    z-index: 2147483646 !important;
+    pointer-events: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow-x: hidden !important;
+    border: 0 !important;
+}
+
+/* Each arc is a quarter circle of transparency inside a black square, with the
+   circle centred on the far corner of that square. */
+.slimread-corner-tl {
+    top: 0 !important; left: 0 !important;
+    background: radial-gradient(circle at 100% 100%,
+        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
+}
+
+.slimread-corner-tr {
+    top: 0 !important; right: 0 !important;
+    background: radial-gradient(circle at 0 100%,
+        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
+}
+
+.slimread-corner-bl {
+    bottom: 0 !important; left: 0 !important;
+    background: radial-gradient(circle at 100% 0,
+        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
+}
+
+.slimread-corner-br {
+    bottom: 0 !important; right: 0 !important;
+    background: radial-gradient(circle at 0 0,
+        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
 }
 
 /* Never let an image overflow its column. Safe on any page. */
