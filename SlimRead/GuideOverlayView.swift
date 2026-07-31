@@ -83,6 +83,17 @@ final class GuideOverlayView: UIView {
         stack.addArrangedSubview(button)
         stack.setCustomSpacing(28, after: items.isEmpty ? title : stack.arrangedSubviews[stack.arrangedSubviews.count - 2])
 
+        // Both update channels in one line. The app version only changes when a build is
+        // sideloaded; the tweaks stamp changes on its own whenever tweaks/ is pushed.
+        let footer = UILabel()
+        footer.text = Self.versionLine
+        footer.font = .systemFont(ofSize: 12)
+        footer.textColor = UIColor.white.withAlphaComponent(0.4)
+        footer.textAlignment = .center
+        footer.numberOfLines = 0
+        stack.addArrangedSubview(footer)
+        stack.setCustomSpacing(16, after: button)
+
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -143,6 +154,29 @@ final class GuideOverlayView: UIView {
         row.spacing = 14
         row.alignment = .top
         return row
+    }
+
+    /// e.g. "SlimRead 1.03 (7) - tweaks 1 Aug 03:14"
+    ///
+    /// Nothing else in the app reports either number, which makes "did my update
+    /// actually land" unanswerable from the phone. The two move independently: the
+    /// version needs a sideload, the tweaks stamp updates by itself on next launch.
+    private static var versionLine: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+
+        var line = "SlimRead \(version) (\(build))"
+
+        if let updated = TweaksLoader.lastUpdated {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "d MMM HH:mm"
+            line += "  -  tweaks \(formatter.string(from: updated))"
+        } else {
+            line += "  -  built-in tweaks"
+        }
+
+        return line
     }
 
     @objc private func dismissTapped() {
