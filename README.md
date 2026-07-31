@@ -156,30 +156,33 @@ Two consequences:
 - **Developer Mode must be enabled** and left on. It does not disable code signing,
   sandboxing or encryption. See [Troubleshooting](#troubleshooting).
 
-[AltStore](https://altstore.io) removes the weekly renewal by re-signing automatically over
-Wi-Fi. Optional, and worth it if the reminder gets tiresome.
+You can remove the weekly step entirely — see [Automatic renewal](#automatic-renewal).
+
+## Automatic renewal
+
+The 7-day expiry can be automated away with Sideloadly's built-in refresh daemon. Two
+one-time steps:
+
+1. **When sideloading,** tick the **auto-refresh** option before pressing Start.
+2. **Enable Wi-Fi sideloading:** with the phone connected by cable, open iTunes → your
+   device → Summary → Options → tick **Sync with this iDevice over Wi-Fi** → Sync.
+
+From then on Sideloadly re-signs the app whenever your phone is on the same network as your
+PC. Nothing to remember and no cable.
+
+Your PC has to be switched on and reachable for this to fire. That is unavoidable — the
+signing has to happen somewhere, and on a free Apple ID it happens on a computer.
 
 ## Updating
 
-**Page behaviour** — edit `tweaks/`, push, reopen the app. Nothing else. See
-[Live tweaks](#live-tweaks).
+**You do not update this app.** Improvements arrive on their own.
 
-**The app itself** — a new binary must be signed and installed; iOS permits no silent
-self-update. Two options:
+Page layout and loading behaviour live in [`tweaks/`](tweaks/), which every installed copy
+fetches from this repository each time it launches. When the maintainer changes something
+there, your app has it the next time you open it — nothing to install, nothing to approve.
 
-*From the PC:* run `SlimRead.bat` and sideload the new IPA over the old install. App data
-and site logins survive.
-
-*From the phone:* run the **Publish release** workflow (Actions → Publish release → enter a
-version). It builds the app, attaches the IPA to a GitHub Release, and updates
-[AltStore](https://altstore.io) or [SideStore](https://sidestore.io):
-
-```
-```
-
-Updates then appear in AltStore on the phone and install with one tap, no cable. AltStore
-also re-signs automatically over Wi-Fi before the certificate expires, which removes the
-weekly Sideloadly step.
+Changes to the app itself are rarer, and ride along with the certificate renewal you are
+already doing: `SlimRead.bat` always downloads the newest published build.
 
 ## For the maintainer
 
@@ -223,8 +226,9 @@ identifier from `com.example.slimread`, and run.
 ## Limitations
 
 - **Certificate expiry.** Apps signed with a free Apple ID stop launching after seven days
-  and must be re-signed. Re-signing preserves app data and logins. AltStore and SideStore
-  automate this; a paid Apple Developer account extends the certificate to a year.
+  and must be re-signed. Re-signing preserves app data and logins. Sideloadly's auto-refresh
+  daemon handles it over Wi-Fi; a paid Apple Developer account extends the certificate to a
+  year instead.
 - **Developer Mode must stay enabled.** Development-signed apps will not launch without it.
   Turning it off disables the app. Ad-hoc and TestFlight distribution avoid the requirement
   but need the paid developer account.
@@ -373,11 +377,26 @@ Uninstall the Store versions, then install
 iTunes itself — if iTunes cannot see it, nothing else will. Also check you are using a data
 cable rather than a charge-only one, and that you tapped **Trust This Computer**.
 
-### Sideloadly rejects your Apple ID password
+### Sideloadly rejects your Apple ID password, or says "update iCloud for Windows"
 
-With two-factor enabled, some accounts need an
-[app-specific password](https://account.apple.com/account/manage) instead of your real one.
-Generate one and paste that.
+Use your real Apple ID password and the 6-digit code from your phone. App-specific passwords
+only work with a *paid* developer account and anisette disabled, so they are not an option on
+a free Apple ID.
+
+If sign-in fails with a message about updating iCloud for Windows, the problem is **anisette**
+— the authentication tokens Apple demands from Windows clients, normally supplied by a local
+iCloud install. Apple removed the standalone iCloud download page, so this is now common.
+
+The fix is a checkbox: **Sideloadly → Advanced Options → Remote Anisette**. Sideloadly then
+fetches those tokens from its own server and your local iCloud stops mattering. Their server
+sees only your IP, OS and Sideloadly version; your Apple ID and password still go straight to
+Apple.
+
+Device detection comes from iTunes rather than iCloud, so with remote anisette enabled you
+may not need iCloud installed at all. If you want it anyway, Sideloadly's homepage still
+hosts a working direct link under **Before you install → Web iCloud**.
+
+Switching to AltServer does not avoid this — it has the same iTunes and iCloud requirement.
 
 ### "Untrusted Developer" when opening the app
 
@@ -404,8 +423,8 @@ Apple Developer account.
 ### The app stopped opening after a week
 
 The free certificate expired. Run `SlimRead.bat` again and re-sideload. App data, logins and
-reading position all survive. [AltStore](https://altstore.io) or
-[SideStore](https://sidestore.io) automate the renewal over Wi-Fi.
+reading position all survive. Set up [Automatic renewal](#automatic-renewal) so it stops
+happening.
 
 ### A page renders oddly, or a tweak went too far
 

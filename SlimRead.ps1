@@ -124,7 +124,11 @@ if ($storeItunes) {
 if ($driversPresent -and -not $storeItunes) {
     Good 'Apple Mobile Device Support is installed'
 } else {
-    Warn 'The Apple drivers are missing. Both of these are needed.'
+    Warn 'The Apple drivers are missing.'
+    Info 'iTunes supplies the drivers that let your phone be seen - that one matters.'
+    Info 'iCloud only supplies Apple ID sign-in tokens, and Sideloadly can fetch those'
+    Info 'from its own server instead (Advanced Options > Remote Anisette), so do not'
+    Info 'get stuck if iCloud will not install.'
     Line
     if (Ask 'Download and run the installers now?') {
         $itunes = Join-Path $WorkDir 'iTunesSetup.exe'
@@ -190,10 +194,15 @@ Info '     Not listed? The Apple drivers in step 2 are the cause. Check the phon
 Info '     shows up in iTunes itself - if iTunes cannot see it, nothing can.'
 Info '2. Drag SlimRead.ipa onto the IPA box (the folder will open for you).'
 Info '3. Type your Apple ID into the Apple account box.'
-Info '4. Press Start, then enter your password.'
-Info '5. Enter the 6-digit code your phone shows.'
-Info '     If the password is rejected outright, create an app-specific password'
-Info '     at https://account.apple.com/account/manage and use that instead.'
+Info '4. Tick the auto-refresh option - it renews the app for you every week.'
+Info '5. Press Start, then enter your password and the 6-digit code from your phone.'
+Line
+Warn 'If sign-in fails, or it tells you to update iCloud for Windows:'
+Info '  In Sideloadly, open Advanced Options and tick "Remote Anisette", then'
+Info '  try again. That takes your local iCloud install out of the sign-in path,'
+Info '  which is the usual cause since Apple removed the iCloud download page.'
+Info '  Use your REAL Apple ID password - app-specific passwords do not work'
+Info '  with a free Apple ID.'
 Line
 Info 'Wait for the log to say Done.'
 Line
@@ -240,6 +249,10 @@ Warn 'It will stop opening after 7 days.'
 Info 'That is the free Apple certificate expiring, not a fault. Run this file'
 Info 'again to renew it - your logins and reading position survive.'
 Line
-Info 'To avoid the weekly renewal, use AltStore (https://altstore.io) instead of'
-Info 'Sideloadly. It re-signs automatically over Wi-Fi.'
+Info 'You can automate that away with Sideloadly itself:'
+Info '  1. When sideloading, tick the auto-refresh option before pressing Start.'
+Info '  2. In iTunes: your device > Summary > Options > tick "Sync with this'
+Info '     iDevice over Wi-Fi", then Sync.'
+Info 'Sideloadly then re-signs the app whenever your phone is on the same network'
+Info 'as this PC. No cable, nothing to remember.'
 Line
