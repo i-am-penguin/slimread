@@ -273,14 +273,16 @@ try {
         )
     }
 
-    Say 'building, usually 2-4 minutes...'
+    Write-Host ''
 
     $runId = ''
     foreach ($attempt in 1..30) {
+        Write-Host ("`r  waiting for GitHub to pick it up... {0}s   " -f ($attempt * 4)) -NoNewline -ForegroundColor DarkGray
         Start-Sleep -Seconds 4
         $candidate = Latest-RunId
         if ($candidate -and $candidate -ne $previousRun) { $runId = $candidate; break }
     }
+    Write-Host "`r                                              `r" -NoNewline
 
     if (-not $runId) {
         Stop-With 'The release build never started' @(
@@ -290,13 +292,59 @@ try {
         )
     }
 
-    & gh run watch $runId --exit-status
-    $conclusion = (& gh run view $runId --json conclusion --jq '.conclusion' 2>$null)
-    if ($conclusion) { $conclusion = $conclusion.Trim() }
-    if ($conclusion -ne 'success') {
-        & gh run view $runId --log-failed
-        Stop-With 'Release build failed' @('The compiler output is above.')
+    Say "run:  https://github.com/$Owner/$Repo/actions/runs/$runId" DarkGray
+    Write-Host ''
+
+    # Poll and report, rather than handing off to `gh run watch` - that printed
+    # nothing at all here, so a 3-minute build looked like a hung script.
+    $spin = '|/-\'
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $status = ''
+    $conclusion = ''
+    $tick = 0
+
+    while ($true) {
+        $raw = (& gh run view $runId --json status,conclusion --jq '.status + "|" + (.conclusion // "")' 2>$null)
+        if ($raw) {
+            $parts = $raw.Trim() -split '\|'
+            $status = $parts[0]
+            if ($parts.Count -gt 1) { $conclusion = $parts[1] }
+        }
+
+        $label = switch ($status) {
+            'queued'      { 'queued - waiting for a macOS runner' }
+            'in_progress' { 'building on macOS' }
+            'completed'   { 'finishing up' }
+            default       { if ($status) { $status } else { 'checking' } }
+        }
+
+        Write-Host ("`r  [{0}] {1,-38} {2:mm\:ss}   " -f `
+            $spin[$tick % 4], $label, $clock.Elapsed) -NoNewline -ForegroundColor Cyan
+
+        if ($status -eq 'completed') { break }
+
+        if ($clock.Elapsed.TotalMinutes -ge 20) {
+            Write-Host ''
+            Stop-With 'The build is taking far too long' @(
+                "Check it: https://github.com/$Owner/$Repo/actions/runs/$runId",
+                "Nothing was released, so v$version is still free to use."
+            )
+        }
+
+        $tick++
+        Start-Sleep -Seconds 3
     }
+
+    Write-Host ''
+    if ($conclusion -ne 'success') {
+        Write-Host ''
+        & gh run view $runId --log-failed
+        Stop-With "Release build $conclusion" @(
+            'The compiler output is above.',
+            "Full log: https://github.com/$Owner/$Repo/actions/runs/$runId"
+        )
+    }
+    Say "build succeeded in $([int]$clock.Elapsed.TotalMinutes)m $($clock.Elapsed.Seconds)s" Green
 
     Write-Host ''
     Say "Published v$version. Anyone running SlimRead.bat now gets this build." Green
