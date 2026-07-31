@@ -1,152 +1,166 @@
 # SlimRead
 
-A one-page iPhone browser with **no status bar in portrait**. Built for reading vertical-scroll
-manhwa on Tapas without the clock, battery and signal bars sitting on top of the artwork.
+A minimal iOS browser that hides the status bar in portrait orientation, built for reading
+vertical-scroll comics without system UI covering the artwork.
 
 ---
 
-## Before you build anything
+## Why
 
-Two App Store apps already do this, free, with no PC and no weekly expiry:
+Reading a vertical-scroll comic on iOS means the status bar — clock, battery, signal — sits
+over the top of the page for the entire session. iOS exposes no setting to hide it while
+browsing, and the web platform offers no way to remove it either:
 
-- **Kiosk - fullscreen browser** - explicitly hides the status bar, no nav bar, swipe to go back
-- **Private Full Screen Browser** - hides address bar, buttons and status bar, portrait and landscape
-
-If either works on Tapas, use it and skip this repo entirely. Build your own only if you
-want no ads, exact gesture behaviour, or the ability to change it.
-
-## Fastest route on Windows
-
-Extract this zip, then double-click **`RUN ME - Build SlimRead.bat`**.
-
-It installs Git and the GitHub CLI, signs you in, uploads the project to a repo of your own,
-builds it on GitHub's free macOS runners, and leaves `SlimRead.ipa` on your Desktop - about
-five minutes, mostly waiting. Then you drag that IPA onto [Sideloadly](https://sideloadly.io)
-with the phone plugged in.
-
-You need a free GitHub account. Choose **public** when it asks about repo visibility -
-public repos get unlimited free macOS build minutes, private ones burn your monthly quota
-at a 10x rate.
-
----
-
-## Why this needs to be an app
-
-There is no web-only way to do this, and it is worth knowing that up front:
-
-| Approach | Result |
+| Approach | Outcome |
 |---|---|
-| PWA "Add to Home Screen" | Status bar still renders. `black-translucent` only lets content pass *under* it — the clock and battery still draw on top. |
-| Fullscreen API | Not supported on iPhone Safari for anything but video. |
-| Your own page with tapas.io in an iframe | Blocked by Tapas' frame headers, and the status bar would stay anyway. |
-| Guided Access | Hides the home bar, not the status bar. |
-| Rotating to landscape | Works, but it's landscape. |
+| Home Screen web app (PWA) | Status bar still renders. `apple-mobile-web-app-status-bar-style: black-translucent` only lets content pass *underneath* it; the clock and battery still draw on top. |
+| Fullscreen API | Not supported on iPhone Safari outside of video elements. |
+| Guided Access | Hides the home indicator, not the status bar. |
+| Rotating to landscape | Works, but portrait is the correct aspect ratio for vertical-scroll comics. |
 
-A native app can simply say "hide it", in any orientation. That's what this is — three Swift files.
+A native app has no such restriction. A view controller returning `true` from
+`prefersStatusBarHidden` hides the status bar in every orientation. SlimRead is the smallest
+useful application built around that fact: a single `WKWebView`, no permanent chrome, three
+Swift files.
 
-## How it actually works
+## Features
 
-In `BrowserViewController.swift`:
+- **No status bar, portrait or landscape.** Documented UIKit API, no orientation spoofing.
+- **No permanent chrome.** The reading surface is the entire display. A small pill at the
+  bottom edge is the only persistent UI.
+- **Controls on demand.** Tap the pill or two-finger tap anywhere for back, forward, address
+  field, reload, home, and a full-bleed toggle. Auto-hides after five seconds.
+- **Edge-swipe navigation** for back and forward.
+- **Full-bleed toggle** switches between drawing under the Dynamic Island and respecting the
+  safe area, for pages where the sensor housing clips artwork.
+- **Home indicator dimmed** and edge gestures deferred, so scrolling near the bottom of the
+  screen doesn't exit the app.
+- **Session persistence.** Cookies are kept, so site logins survive. Reopening returns to the
+  last page read.
+
+## Implementation
+
+The status bar behaviour comes from four overrides in `BrowserViewController.swift`:
 
 ```swift
 override var prefersStatusBarHidden: Bool { true }
+override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
 override var prefersHomeIndicatorAutoHidden: Bool { true }
 override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.top, .bottom] }
 ```
 
-plus, in `Info.plist`:
+paired with two keys in `Info.plist`:
 
 ```xml
-<key>UIStatusBarHidden</key><true/>                          <!-- launch screen too -->
-<key>UIViewControllerBasedStatusBarAppearance</key><true/>   <!-- let the VC decide -->
+<key>UIStatusBarHidden</key><true/>
+<key>UIViewControllerBasedStatusBarAppearance</key><true/>
 ```
 
-That's the whole mechanism. Documented API, no orientation faking, no private calls,
-App Store-legal if you ever wanted to ship it.
-
-## Using it
-
-- Opens straight to tapas.io, and resumes wherever you left off.
-- **No chrome at all** while reading — just a faint pill at the bottom centre.
-- **Tap the pill** (or **two-finger tap anywhere**) to raise back / forward / address / reload /
-  home / edge-to-edge toggle. It slides away again after 5 seconds.
-- **Swipe from the left or right edge** to go back and forward.
-- The **edge-to-edge button** switches between painting under the Dynamic Island and staying
-  inside the safe area. Full-bleed is the default; flip it if the island clips artwork.
-- Cookies persist, so a Tapas login sticks.
-
-To point it at a different site by default, change `homeURL` at the top of
-`BrowserViewController.swift`.
-
----
-
-## Installing it
-
-Pick whichever matches your setup. **Route A** if you can borrow a Mac for ten minutes,
-**Route B** if you're on Windows only, **Route C** if you have an iPad.
-
-### Route A — Mac with Xcode
-
-1. Open `SlimRead.xcodeproj`.
-2. Select the **SlimRead** target → **Signing & Capabilities**.
-3. Set **Team** to your Apple ID (Xcode → Settings → Accounts → **+** adds a free one).
-4. Change the **Bundle Identifier** from `com.example.slimread` to something unique —
-   `com.yourname.slimread`.
-5. Plug in the iPhone, pick it in the device menu, press **⌘R**.
-6. First run only: on the phone, **Settings → General → VPN & Device Management** → trust
-   your developer certificate.
-
-### Route B — Windows only, no Mac
-
-You still need macOS to *compile*, but GitHub's runners are free and there's a workflow
-included that does it for you.
-
-1. Push this folder to a GitHub repo.
-2. **Actions** tab → **Build unsigned IPA** → **Run workflow**.
-3. When it finishes, download the `SlimRead-ipa` artifact and unzip it to get `SlimRead.ipa`.
-4. Install it with either:
-   - **Sideloadly** (simplest) — desktop app for Windows, plug in the phone, drag the IPA,
-     enter your Apple ID.
-   - **AltStore** — install AltServer on the PC, pair once over USB, and it can then refresh
-     over Wi-Fi so you don't have to plug in every week.
-   - **SideStore** — runs on the phone itself and refreshes in the background after setup.
-5. Trust the certificate under **Settings → General → VPN & Device Management**.
-
-### Route C — iPad with Swift Playgrounds
-
-Open `SlimRead.swiftpm` in Swift Playgrounds on an iPad and use **Run on device** to install
-onto your iPhone. Same browser code, SwiftUI entry point instead of `AppDelegate`.
-(Swift Playgrounds on iPhone can't build apps — iPad only.)
-
----
-
-## The catch you should know about
-
-Free Apple ID signing gives you a **7-day certificate**. After a week the app stops opening
-and needs re-signing — which is a re-run of whichever install step you used, and doesn't wipe
-your data or logins. You're also capped at **3 sideloaded apps at once**.
-
-AltStore and SideStore automate the weekly refresh, which is why they're worth the extra
-setup over Sideloadly if you plan to keep this around.
-
-A paid Apple Developer account ($99/year) extends the certificate to **1 year**. Only worth it
-if the weekly refresh genuinely irritates you.
+`UIStatusBarHidden` covers the launch screen; `UIViewControllerBasedStatusBarAppearance`
+delegates the runtime decision to the view controller. Both are public API and App Store
+compliant.
 
 ## Requirements
 
-- iOS 15+ for the Xcode project, iOS 16+ for the Swift Playgrounds variant
-- Xcode 15 or newer
+- iOS 15.0 or later (iOS 16.0 for the Swift Playgrounds variant)
+- Xcode 15 or later to build
+- An Apple ID for code signing — a free account is sufficient
 
-## Layout
+## Installation
+
+### Windows
+
+No Mac is required. The included GitHub Actions workflow compiles the project on a
+GitHub-hosted macOS runner and publishes an unsigned `.ipa` as a build artifact.
+
+**Prerequisites:** [Git](https://git-scm.com/download/win) and the
+[GitHub CLI](https://cli.github.com), authenticated with `gh auth login`.
+
+**First-time setup:**
+
+```powershell
+git init -b main
+git add -A
+git commit -m "Initial commit"
+gh repo create slimread --public --source . --remote origin --push
+```
+
+**Every build after that** — double-click `Build and Download IPA.bat`. It commits, pushes,
+waits for the macOS build, and downloads `SlimRead.ipa` into the project folder. Equivalent
+manual commands:
+
+```powershell
+git add -A; git commit -m "update"; git push
+gh run watch
+gh run download --name SlimRead-ipa
+```
+
+**Installing the IPA on device:** open [Sideloadly](https://sideloadly.io), connect the
+iPhone by cable, drag the `.ipa` onto the window, and sign in with your Apple ID.
+[AltStore](https://altstore.io) and [SideStore](https://sidestore.io) are alternatives that
+re-sign automatically over Wi-Fi.
+
+> Public repositories receive unlimited GitHub Actions minutes. Private repositories bill
+> macOS runner time against the free monthly allowance at a 10× multiplier.
+
+### macOS
+
+1. Open `SlimRead.xcodeproj`.
+2. Select the **SlimRead** target → **Signing & Capabilities**.
+3. Set **Team** to your Apple ID and change the bundle identifier from `com.example.slimread`
+   to something unique.
+4. Select your device and run (⌘R).
+5. On first launch, trust the certificate under **Settings → General → VPN & Device
+   Management**.
+
+### iPad (Swift Playgrounds)
+
+Open `SlimRead.swiftpm` in Swift Playgrounds and use **Run on device**. The browser code is
+identical; only the entry point differs (SwiftUI rather than `UIApplicationDelegate`).
+Swift Playgrounds on iPhone cannot build applications — an iPad is required.
+
+## Configuration
+
+All of the following are in `BrowserViewController.swift`:
+
+| Setting | Location |
+|---|---|
+| Start page | `homeURL` |
+| Control bar auto-hide delay | `autoHideDelay` |
+| Which buttons appear | `wireControls()` — one line per button |
+| Default full-bleed behaviour | the `fullBleed` default in `init()` |
+
+## Limitations
+
+- **Certificate expiry.** Apps signed with a free Apple ID stop launching after seven days
+  and must be re-signed. Re-signing preserves app data and site logins. AltStore and SideStore
+  automate this; a paid Apple Developer account extends the certificate to one year.
+- **Three-app limit.** Free Apple IDs can have at most three sideloaded applications
+  installed simultaneously.
+- **Single view.** There are no tabs, bookmarks, or history UI. This is deliberate.
+
+## Project layout
 
 ```
-SlimRead.xcodeproj              Xcode project (Routes A + B)
+SlimRead.xcodeproj                Xcode project
 SlimRead/
-  AppDelegate.swift             window + root VC, ~20 lines
-  BrowserViewController.swift   the web view, status-bar overrides, gestures
-  ControlBarView.swift          the pop-up bottom bar
-  Info.plist                    status bar keys live here
-  Assets.xcassets               app icon
-SlimRead.swiftpm/               Swift Playgrounds variant (Route C)
-.github/workflows/build-ipa.yml CI build for Route B
+  AppDelegate.swift               window and root view controller
+  BrowserViewController.swift     web view, status bar overrides, gestures
+  ControlBarView.swift            the on-demand control bar
+  Info.plist                      status bar configuration
+  Assets.xcassets                 app icon
+SlimRead.swiftpm/                 Swift Playgrounds variant
+.github/workflows/build-ipa.yml   macOS CI build
+Build and Download IPA.bat        one-click build and fetch (Windows)
 ```
+
+## Scope
+
+SlimRead is a browser. It renders sites as they are served, with no content extraction,
+downloading, ad blocking, or script injection of any kind. Pages load exactly as they would
+in Safari, including advertising and analytics, so publisher and creator revenue is
+unaffected. The only difference is that the status bar is not drawn.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
