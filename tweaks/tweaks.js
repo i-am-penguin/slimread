@@ -32,7 +32,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.15 b10 01 Aug 18:46';
+    var TWEAKS_VERSION = '1.16 b11 01 Aug 18:50';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -97,8 +97,20 @@
     var TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
     // How far ahead panels start loading, as a percentage of the viewport.
-    // 300% is three screens - comfortably more than one panel's height.
-    var LOAD_MARGIN = '300% 0px 300% 0px';
+    //
+    // This is the one knob that decides whether a panel is ready before you reach
+    // it. Panels are around 1700px tall against a ~850px screen, so 300% (2550px)
+    // was only about 1.5 panels of warning - enough to see the black gap while the
+    // download and decode finish. 800% is roughly 4 panels ahead, which covers
+    // several seconds of reading.
+    //
+    // It stays proportional to the viewport, not the document, so a bigger number
+    // does not mean loading the whole chapter at once: at 800% only the handful of
+    // panels within ~6800px are ever in flight.
+    //
+    // Turn it down if it ever feels heavy on cellular; turn it up if a black gap
+    // comes back. Nothing else needs to change.
+    var LOAD_MARGIN = '800% 0px 800% 0px';
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
