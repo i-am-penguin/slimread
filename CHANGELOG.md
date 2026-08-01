@@ -8,6 +8,21 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.18 - 2026-08-01
+- Fix the endless scroll stopping after 20 episodes. The episode-list API returns
+  the NEXT page number in its "page" field, not the current one, so asking for
+  page+1 skipped every other page - anything past episode 20 was never found and
+  the reader decided the series had ended.
+- Next-chapter button now navigates directly instead of trying to stitch and
+  scroll, and shows a message either way. It previously fell back to clicking the
+  site's own Next button, which does not navigate - so the tap did nothing at all.
+- Tapping next-chapter no longer closes the control bar, so a tap is never
+  mistaken for an accidental dismissal.
+- Only the top-LEFT corner toggles the control bar. Full-width tap zones above and
+  inside the bar were swallowing taps meant for its buttons.
+- Panels now load 16 screens ahead and each chapter primes its first 12 panels, so
+  artwork is drawn well before it is scrolled to.
+
 ## v1.17 - 2026-08-01
 - Disable scroll-up-to-previous-chapter. It fired on any brisk upward flick that
   reached the top and yanked you out of the chapter you were reading.

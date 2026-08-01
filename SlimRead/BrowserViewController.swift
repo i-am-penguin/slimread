@@ -22,8 +22,11 @@ final class BrowserViewController: UIViewController {
     /// Seconds of inactivity before the control bar hides itself.
     private let autoHideDelay: TimeInterval = 6
 
-    /// Height of the invisible tap target at the top of the screen that toggles the bar.
+    /// The invisible tap target that toggles the bar. Top-LEFT corner only: a
+    /// full-width strip meant every tap near the top of the page hit it, including
+    /// ones aimed at the bar's own buttons.
     private let topTapZoneHeight: CGFloat = 64
+    private let topTapZoneWidth: CGFloat = 110
 
     // MARK: - Views
 
@@ -213,7 +216,7 @@ final class BrowserViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             topTapZone.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            topTapZone.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topTapZone.widthAnchor.constraint(equalToConstant: topTapZoneWidth),
             topTapZone.topAnchor.constraint(equalTo: view.topAnchor),
             topTapZone.heightAnchor.constraint(equalToConstant: topTapZoneHeight),
 
@@ -243,8 +246,9 @@ final class BrowserViewController: UIViewController {
         }
         // The page knows the chapter order - see __slimreadNextChapter in tweaks.js.
         // Falls back to the site's own Next button if the reader is not active.
+        // Deliberately does NOT close the bar. It used to, so a tap that resolved to
+        // nothing looked exactly like a tap that had dismissed the bar by accident.
         controls.onNextChapter = { [weak self] in
-            self?.setControls(visible: false)
             self?.webView.evaluateJavaScript(
                 "(window.__slimreadNextChapter && window.__slimreadNextChapter()), 0"
             )

@@ -66,6 +66,26 @@ img {
 
 .slimread-badge-out { opacity: 0 !important; }
 
+/* Feedback for the next-chapter button, so a tap is never silent. */
+.slimread-toast {
+    position: fixed !important;
+    left: 50% !important;
+    bottom: 60px !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important;
+    max-width: 80vw !important;
+    background: rgba(0, 0, 0, 0.88) !important;
+    color: #fff !important;
+    font: 500 13px/1.3 -apple-system, system-ui, sans-serif !important;
+    padding: 10px 16px !important;
+    border-radius: 10px !important;
+    pointer-events: none !important;
+    opacity: 1 !important;
+    transition: opacity 0.35s ease !important;
+}
+
+.slimread-toast-out { opacity: 0 !important; }
+
 /* --- Reader pages only --------------------------------------------------- */
 
 .slimread-reader,

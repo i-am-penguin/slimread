@@ -129,8 +129,10 @@ final class ControlBarView: UIView {
 
             field.heightAnchor.constraint(equalToConstant: 36),
 
+            // Top-LEFT corner only, matching the tap zone on the page behind it.
+            // Full width meant the whole strip above the controls dismissed the bar.
             headerTapZone.leadingAnchor.constraint(equalTo: leadingAnchor),
-            headerTapZone.trailingAnchor.constraint(equalTo: trailingAnchor),
+            headerTapZone.widthAnchor.constraint(equalToConstant: 110),
             headerTapZone.topAnchor.constraint(equalTo: topAnchor),
             headerTapZone.bottomAnchor.constraint(equalTo: column.topAnchor)
         ])

@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.17 b12 01 Aug 22:33';
+    var TWEAKS_VERSION = '1.18 b13 01 Aug 22:47';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -112,11 +112,11 @@
     //
     // Turn it down if it ever feels heavy on cellular; turn it up if a black gap
     // comes back. Nothing else needs to change.
-    var LOAD_MARGIN = '800% 0px 800% 0px';
+    var LOAD_MARGIN = '1600% 0px 1600% 0px';
 
     // Panels loaded the instant a chapter is entered, without waiting for the
-    // observer. Covers the first few screens so a new chapter opens already drawn.
-    var PRIME_COUNT = 6;
+    // observer. Covers the first stretch so a new chapter opens already drawn.
+    var PRIME_COUNT = 12;
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
@@ -234,8 +234,13 @@
                 }
                 IS.order = IS.order.concat(ids);
                 IS.hasMore = /"has_next"\s*:\s*true/.test(text);
-                var pg = text.match(/"page"\s*:\s*(\d+)/);
-                IS.page = pg ? parseInt(pg[1], 10) : IS.page + 1;
+
+                // Track the page WE asked for. The "page" field in the response is
+                // the NEXT page, not the current one - requesting page 1 comes back
+                // saying "page":2. Trusting it meant asking for page+1 = 3 next and
+                // skipping page 2 entirely, so anything past episode 20 was never
+                // found and the reader decided the series had ended.
+                IS.page = page;
                 // No new ids and no next page: stop, or ensureIndexOf would spin.
                 if (!ids.length && !IS.hasMore) return false;
                 return true;
@@ -402,32 +407,48 @@
        the chapter you were reading. Going back is the app's back button now, which
        is unambiguous and cannot trigger itself. */
 
-    /* Called by the app's next-chapter button - the manual fallback for when the
-       automatic append has not happened yet. */
+    /* Brief on-screen message. The button used to do its work silently, so a tap
+       that resolved to nothing was indistinguishable from a tap that missed. */
+    function toast(text) {
+        var el = document.getElementById('slimread-toast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'slimread-toast';
+            el.className = 'slimread-toast';
+            (document.body || root).appendChild(el);
+        }
+        el.textContent = text;
+        el.className = 'slimread-toast';
+        clearTimeout(toast.timer);
+        toast.timer = setTimeout(function () { el.className = 'slimread-toast slimread-toast-out'; }, 1600);
+    }
+
+    /* Called by the app's next-chapter button - the manual way out when the
+       automatic append has not happened, or cannot.
+
+       This navigates rather than trying to stitch and scroll. Stitching is for
+       reading continuously; when you have deliberately asked to move on, the
+       reliable thing is simply to go there. */
     window.__slimreadNextChapter = function () {
-        if (!IS.active) {
-            var btn = document.querySelector('.js-next-ep-btn:not(.disabled)');
-            if (btn) btn.click();
+        var here = null;
+        if (IS.blocks.length) { var c = chapterUnderTop(); if (c) here = c.id; }
+        if (!here) here = IS.headId || currentEpisodeId();
+
+        // Read these fresh rather than depending on setupContinuousScroll having
+        // run. The old version bailed to clicking the site's own Next button,
+        // which does not navigate - so the tap did nothing at all, silently.
+        if (!IS.seriesId) IS.seriesId = seriesIdFromDom();
+
+        if (!IS.seriesId || !here) {
+            toast('Cannot tell which chapter this is');
             return;
         }
-        // Already stitched on? Just go there.
-        var last = IS.blocks.length ? IS.blocks[IS.blocks.length - 1] : null;
-        var atLast = last && last.anchor.getBoundingClientRect().top <= 1;
-        if (last && !atLast) {
-            window.scrollTo(0, last.anchor.getBoundingClientRect().top + window.scrollY);
-            return;
-        }
-        appendNextChapter();
-        // Give the fetch a moment, then jump to whatever landed.
-        var tries = 0;
-        (function waitForIt() {
-            var b = IS.blocks.length ? IS.blocks[IS.blocks.length - 1] : null;
-            if (b && (!last || b.id !== last.id)) {
-                window.scrollTo(0, b.anchor.getBoundingClientRect().top + window.scrollY);
-                return;
-            }
-            if (tries++ < 40) setTimeout(waitForIt, 150);
-        })();
+
+        toast('Loading next chapter...');
+        nextIdAfter(here).then(function (nid) {
+            if (nid) location.href = '/episode/' + nid;
+            else toast('This is the latest chapter');
+        }).catch(function () { toast('Could not reach the next chapter'); });
     };
 
     function setupContinuousScroll() {
