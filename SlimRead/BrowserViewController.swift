@@ -30,7 +30,6 @@ final class BrowserViewController: UIViewController {
     private var webView: WKWebView!
     private let controls = ControlBarView()
     private let topTapZone = UIView()
-    private let cornerMask = CornerMaskView()
 
     // MARK: - State
 
@@ -40,8 +39,8 @@ final class BrowserViewController: UIViewController {
     private var lastScrollOffset: CGFloat = 0
 
     private var controlsTop: NSLayoutConstraint!
-    private var webTop: NSLayoutConstraint!
-    private var webBottom: NSLayoutConstraint!
+    private var webLeading: NSLayoutConstraint!
+    private var webTrailing: NSLayoutConstraint!
 
     private var fullBleed: Bool {
         didSet {
@@ -106,7 +105,6 @@ final class BrowserViewController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        applyCornerRadius()
 
         // Keep the parked position in step with the bar's height as the safe-area
         // inset settles. Guarded, or assigning it here would dirty layout every pass.
@@ -153,14 +151,19 @@ final class BrowserViewController: UIViewController {
         webView.scrollView.decelerationRate = .normal
         view.addSubview(webView)
 
-        webTop = webView.topAnchor.constraint(equalTo: view.topAnchor)
-        webBottom = webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        // Vertical edges are ALWAYS pinned to the safe area. That is the whole corner
+        // fix: content never reaches the notch, Dynamic Island, home indicator, or the
+        // rounded display corners, so nothing is ever clipped and no corner mask, arc,
+        // or padding hack is needed. The strips those insets leave are the view's own
+        // black background. Only the horizontal edges change with full-bleed.
+        webLeading = webView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        webTrailing = webView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
 
         NSLayoutConstraint.activate([
-            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webTop,
-            webBottom
+            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            webLeading,
+            webTrailing
         ])
     }
 
@@ -191,10 +194,6 @@ final class BrowserViewController: UIViewController {
     }
 
     private func buildOverlay() {
-        // Above the page, below everything else.
-        cornerMask.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(cornerMask)
-
         // Invisible strip across the top - the notch / Dynamic Island sits inside it.
         topTapZone.translatesAutoresizingMaskIntoConstraints = false
         topTapZone.backgroundColor = .clear
@@ -206,11 +205,6 @@ final class BrowserViewController: UIViewController {
         controlsTop = controls.topAnchor.constraint(equalTo: view.topAnchor, constant: hiddenOffset)
 
         NSLayoutConstraint.activate([
-            cornerMask.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            cornerMask.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            cornerMask.topAnchor.constraint(equalTo: view.topAnchor),
-            cornerMask.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
             topTapZone.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topTapZone.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             topTapZone.topAnchor.constraint(equalTo: view.topAnchor),
@@ -218,8 +212,7 @@ final class BrowserViewController: UIViewController {
 
             controls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             controls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            controlsTop,
-
+            controlsTop
         ])
 
         wireControls()
@@ -259,58 +252,27 @@ final class BrowserViewController: UIViewController {
         view.addGestureRecognizer(twoFinger)
     }
 
-    // MARK: - Corner radius
-    //
-    // Squares off against rounded display corners otherwise.
-    //
-    // This used to set cornerRadius + masksToBounds on the web view itself, which does
-    // not work: WKWebView renders in another process and hosts the result in a remote
-    // layer tree, so layer masking on it clips the scroll view background but not the
-    // page. CornerMaskView paints black over the corners instead, which is unaffected
-    // by how the content underneath is composited.
-
-    private func applyCornerRadius() {
-        cornerMask.radius = fullBleed ? Self.displayCornerRadius(safeAreaTop: view.safeAreaInsets.top) : 0
-    }
-
-    /// UIScreen knows the real radius but only privately, so fall back to a value keyed
-    /// off the shape of the safe area when that is unavailable.
-    private static func displayCornerRadius(safeAreaTop: CGFloat) -> CGFloat {
-        // NSNumber rather than CGFloat: the KVC call returns a boxed number, and the
-        // direct bridge to CGFloat is not something to depend on.
-        if let boxed = UIScreen.main.value(forKey: "_displayCornerRadius") as? NSNumber {
-            let known = CGFloat(boxed.doubleValue)
-            if known > 0 { return known }
-        }
-
-        switch safeAreaTop {
-        case 55...:  return 55   // Dynamic Island
-        case 45...:  return 47   // notch, 12/13/14 sized
-        case 30...:  return 39   // notch, X / XS / 11 Pro
-        default:     return 0    // home button, square corners
-        }
-    }
-
     // MARK: - Layout modes
 
     private func applyLayoutMode() {
-        webTop.isActive = false
-        webBottom.isActive = false
+        webLeading.isActive = false
+        webTrailing.isActive = false
 
         if fullBleed {
-            webTop = webView.topAnchor.constraint(equalTo: view.topAnchor)
-            webBottom = webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            // Edge to edge. In portrait the horizontal safe-area inset is zero, so this
+            // is simply full width; in landscape it reaches under a side notch.
+            webLeading = webView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+            webTrailing = webView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         } else {
-            webTop = webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
-            webBottom = webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            webLeading = webView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor)
+            webTrailing = webView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor)
         }
 
-        webTop.isActive = true
-        webBottom.isActive = true
+        webLeading.isActive = true
+        webTrailing.isActive = true
 
         UIView.animate(withDuration: 0.2) {
             self.view.layoutIfNeeded()
-            self.applyCornerRadius()
         }
     }
 
@@ -558,57 +520,5 @@ extension BrowserViewController: UIGestureRecognizerDelegate {
         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool {
         true
-    }
-}
-
-// MARK: - Corner mask
-
-/// Paints black into the four corners so the page follows the curve of the display.
-///
-/// Drawn on top rather than masking the web view: WKWebView composites its content in
-/// another process, and a corner radius on its layer does not clip the rendered page.
-/// Painting over it is unaffected by any of that.
-private final class CornerMaskView: UIView {
-
-    var radius: CGFloat = 0 {
-        didSet {
-            guard radius != oldValue else { return }
-            setNeedsLayout()
-        }
-    }
-
-    private let shape = CAShapeLayer()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isUserInteractionEnabled = false
-        backgroundColor = .clear
-        shape.fillRule = .evenOdd
-        shape.fillColor = UIColor.black.cgColor
-        layer.addSublayer(shape)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-
-        // No implicit animation - this follows rotation, and the fill should land with
-        // the new bounds rather than sweep across the screen to reach them.
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        shape.frame = bounds
-
-        if radius > 0 {
-            // Everything outside the rounded rect, via the even-odd rule.
-            let path = UIBezierPath(rect: bounds)
-            path.append(UIBezierPath(roundedRect: bounds, cornerRadius: radius))
-            shape.path = path.cgPath
-        } else {
-            shape.path = nil
-        }
-        CATransaction.commit()
     }
 }

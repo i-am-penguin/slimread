@@ -1,21 +1,18 @@
 /* ===========================================================================
    SlimRead page tweaks - LIVE FILE
    ---------------------------------------------------------------------------
-   Fetched from GitHub at launch. Edit, push, reopen the app.
+   Fetched from GitHub at launch. Edit, push, reopen the app. No rebuild.
 
-   Four jobs:
-     1. Mark reader pages, so the aggressive full-bleed CSS only applies where
-        it belongs. Everything outside the reader (home, series, search) keeps
-        the site's own grid - forcing 100% widths there is what turns cover
-        thumbnails into small images floating in big black cards.
-     2. Force lazy-loaded episode images to load eagerly, and prefetch ahead,
-        so scrolling does not stall on blank panels.
-     3. Strip the horizontal padding that leaves white bars beside the art.
-     4. Tag the site's own fixed bars so CSS can inset them clear of the
-        rounded display corners, and slide the bottom one out of the way
-        while scrolling.
+   Everything here is scoped to the episode reader. Listing pages (home, series,
+   search) are left completely alone - the app's native layout already insets
+   the web view to the safe area, so there are no corners or notch to fight.
 
-   Injected at document start. DOM work waits for the document to be ready.
+   Reader jobs:
+     1. Load panels progressively as you approach them (fast, no request storm).
+     2. Continuous chapter scroll: reaching the end seamlessly appends the next
+        chapter; pulling up past the very top goes to the previous one.
+     3. Strip Tapas's own chrome inside a chapter - top bar, bottom toolbar,
+        comments, recommendations - so only the artwork remains.
    =========================================================================== */
 
 (function () {
@@ -26,48 +23,31 @@
 
     var root = document.documentElement;
 
-    /* --- Version marker --------------------------------------------------
-       BUMP THIS whenever you push tweaks. It is the only way to confirm from
-       the phone that a tweaks push actually landed, and unlike the app version
-       it needs no sideload - this file is fetched fresh on every launch.
+    /* --- Version marker (stamped by the publish script) ------------------ */
 
-       The badge shows once per version, for about two seconds, then never
-       again until this string changes. Set SHOW_BADGE to false to silence it.
-       --------------------------------------------------------------------- */
-
-    var TWEAKS_VERSION = '1.09 b4 01 Aug 04:06';
+    var TWEAKS_VERSION = '1.10 b5 01 Aug 17:49';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
         if (!SHOW_BADGE || !document.body) return;
-
-        // Only announce a version once. Private mode throws on localStorage, in
-        // which case showing it every time is the harmless outcome.
         try {
-            if (window.localStorage.getItem('slimread.tweaksSeen') === TWEAKS_VERSION) return;
-            window.localStorage.setItem('slimread.tweaksSeen', TWEAKS_VERSION);
-        } catch (e) { /* no storage - fall through and show it */ }
+            if (localStorage.getItem('slimread.tweaksSeen') === TWEAKS_VERSION) return;
+            localStorage.setItem('slimread.tweaksSeen', TWEAKS_VERSION);
+        } catch (e) { /* private mode - show it, harmless */ }
 
         var badge = document.createElement('div');
         badge.className = 'slimread-badge';
         badge.textContent = 'tweaks ' + TWEAKS_VERSION;
         document.body.appendChild(badge);
-
         setTimeout(function () { badge.className = 'slimread-badge slimread-badge-out'; }, 2200);
-        setTimeout(function () {
-            if (badge.parentNode) badge.parentNode.removeChild(badge);
-        }, 2800);
+        setTimeout(function () { if (badge.parentNode) badge.parentNode.removeChild(badge); }, 2800);
     }
 
-    /* --- 0. Reader detection --------------------------------------------- */
+    /* --- Reader detection ------------------------------------------------ */
 
-    // Only the episode viewer wants edge-to-edge artwork. Listing pages are a
-    // grid of cover thumbnails and must keep their own sizing.
     var READER_PATH = /\/(episode|viewer|ep)\//i;
-
-    function isReaderPage() {
-        return READER_PATH.test(location.pathname);
-    }
+    function isReaderPage() { return READER_PATH.test(location.pathname); }
+    function currentEpisodeId() { var m = location.pathname.match(/\/episode\/(\d+)/); return m ? m[1] : null; }
 
     function markReader() {
         var on = isReaderPage();
@@ -75,406 +55,337 @@
         return on;
     }
 
-    /* Let CSS env() insets resolve. Without viewport-fit=cover the web content
-       reports zero safe-area insets, so the site's fixed bars run under the
-       Dynamic Island and into the rounded corners. */
-    function coverViewport() {
-        var metas = document.querySelectorAll('meta[name="viewport"]');
+    /* --- 1. Progressive image loading -----------------------------------
+       An IntersectionObserver loads each panel ~2 screens before it is needed.
+       This replaced forcing every panel eager at once, which fired one request
+       per panel the instant a chapter opened - saturating the connection and
+       blocking the main thread (the "cannot tap anything" freeze). Panels keep
+       their width/height attributes, so space is reserved and nothing reflows.
+       --------------------------------------------------------------------- */
 
-        if (!metas.length) {
-            // At document start <head> may not exist yet. Do nothing rather than hang
-            // a meta off <html>, where the site's own tag would later override it -
-            // sweep() calls this again once the document is ready.
-            if (!document.head) return;
-            var meta = document.createElement('meta');
-            meta.setAttribute('name', 'viewport');
-            meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');
-            document.head.appendChild(meta);
-            return;
-        }
-
-        // Patch every one of them - the last tag in the document is the one that wins.
-        for (var i = 0; i < metas.length; i++) {
-            var content = metas[i].getAttribute('content') || '';
-            if (!/viewport-fit\s*=\s*cover/i.test(content)) {
-                metas[i].setAttribute('content', content.replace(/\s*,\s*$/, '') + ', viewport-fit=cover');
-            }
-        }
-    }
-
-    /* --- Rounded display corners ----------------------------------------- */
-
-    // Measured, not guessed: read the real safe-area inset off the device and map
-    // it to that device's display radius. A table of screen sizes goes stale with
-    // every new phone; the inset does not.
-    function measureCornerRadius() {
-        if (!document.body) return 0;
-
-        var probe = document.createElement('div');
-        probe.style.cssText = 'position:fixed;top:0;left:0;width:0;' +
-                              'height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
-        document.body.appendChild(probe);
-        var inset = probe.getBoundingClientRect().height;
-        if (probe.parentNode) probe.parentNode.removeChild(probe);
-
-        if (inset >= 51) return 55;     // Dynamic Island
-        if (inset >= 44) return 47;     // notch, 12 / 13 / 14 sized
-        if (inset >= 30) return 39;     // notch, X / XS / 11 Pro
-        return 0;                       // home button - square display
-    }
-
-    var CORNERS = ['tl', 'tr', 'bl', 'br'];
-
-    function installCorners() {
-        if (!document.body) return;
-
-        var radius = measureCornerRadius();
-        root.style.setProperty('--slimread-corner', radius + 'px');
-        if (!radius) return;
-
-        for (var i = 0; i < CORNERS.length; i++) {
-            var name = 'slimread-corner-' + CORNERS[i];
-            if (document.getElementById(name)) continue;
-            var el = document.createElement('div');
-            el.id = name;
-            el.className = 'slimread-corner ' + name;
-            document.body.appendChild(el);
-        }
-    }
-
-    /* --- 1. Image loading ------------------------------------------------ */
-
-    // Sites lazy-load panels and swap a placeholder for the real source on
-    // scroll. Promote every known lazy attribute immediately instead.
     var LAZY_ATTRS = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-echo'];
-
-    function hasPendingLazyAttr(img) {
-        for (var i = 0; i < LAZY_ATTRS.length; i++) {
-            if (img.getAttribute(LAZY_ATTRS[i])) return true;
-        }
-        return !!img.getAttribute('data-srcset');
-    }
+    var TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
     function promote(img) {
         if (img.__slimreadDone) return;
+        img.__slimreadDone = true;
 
-        var promoted = false;
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
-            var value = img.getAttribute(LAZY_ATTRS[i]);
-            if (value && img.getAttribute('src') !== value) {
-                img.setAttribute('src', value);
-                promoted = true;
-                break;
-            }
+            var v = img.getAttribute(LAZY_ATTRS[i]);
+            if (v && img.getAttribute('src') !== v) { img.setAttribute('src', v); break; }
         }
-
-        var lazySrcset = img.getAttribute('data-srcset');
-        if (lazySrcset && img.getAttribute('srcset') !== lazySrcset) {
-            img.setAttribute('srcset', lazySrcset);
-            promoted = true;
-        }
+        var ss = img.getAttribute('data-srcset');
+        if (ss && img.getAttribute('srcset') !== ss) img.setAttribute('srcset', ss);
 
         img.loading = 'eager';
         img.decoding = 'async';
-
-        // Only close the door once there is nothing left to swap in. Sites populate
-        // data-src late; marking every image done on the first pass - which is what
-        // this used to do - means those never get promoted at all.
-        if (promoted || !hasPendingLazyAttr(img)) {
-            img.__slimreadDone = true;
-        }
-
-        // Panels are measured by natural size, which is zero until they decode.
-        if (!img.__slimreadWatched) {
-            img.__slimreadWatched = true;
-            if (img.complete) {
-                unpadFor(img);
-            } else {
-                img.addEventListener('load', function () { unpadFor(img); }, { once: true });
-            }
-        }
     }
 
-    function promoteAll() {
-        var images = document.images;
-        for (var i = 0; i < images.length; i++) promote(images[i]);
-    }
-
-    // Warm the cache for images just below the viewport, so they are decoded
-    // before they scroll into view.
-    //
-    // The cursor only ever moves forward. Rescanning from index 0 meant every
-    // image already scrolled past was re-measured on every single scroll frame,
-    // and getBoundingClientRect forces layout - so the cost grew the further
-    // into a chapter you read.
-    var prefetchCursor = 0;
-
-    function prefetchAhead() {
-        var images = document.images;
-        var viewportBottom = window.scrollY + window.innerHeight;
-        var horizon = viewportBottom + window.innerHeight * 4;
-        var budget = 6;
-
-        while (prefetchCursor < images.length && budget > 0) {
-            var img = images[prefetchCursor];
-            var top = img.getBoundingClientRect().top + window.scrollY;
-
-            if (top > horizon) break;   // far enough ahead - stop, keep the cursor here
-
-            prefetchCursor++;
-            var src = img.currentSrc || img.src;
-            if (src && top > viewportBottom) {
-                var warm = new Image();
-                warm.src = src;
-                budget--;
-            }
-        }
-    }
-
-    /* --- 2. Layout ------------------------------------------------------- */
-
-    // Some containers set an inline pixel width, which CSS cannot override.
-    // Find the wrapper that actually holds the art and clear it.
-    //
-    // Reader pages only, and only for images big enough to be a panel. Applied
-    // to a cover thumbnail this forces its card to full width while the image
-    // keeps its own size - which is exactly the "small thumbnail in a big black
-    // box" the listing pages were showing.
-    function isPanel(img) {
-        return img.naturalWidth >= 600;
-    }
-
-    function unpadFor(img) {
-        if (!isReaderPage() || !isPanel(img)) return;
-
-        var node = img.parentElement;
-        var hops = 0;
-        while (node && node !== document.body && hops < 4) {
-            if (!node.__slimreadUnpadded) {
-                node.__slimreadUnpadded = true;
-                var style = node.style;
-                if (style) {
-                    style.setProperty('max-width', '100%', 'important');
-                    style.setProperty('width', '100%', 'important');
-                    style.setProperty('padding-left', '0', 'important');
-                    style.setProperty('padding-right', '0', 'important');
-                    style.setProperty('margin-left', '0', 'important');
-                    style.setProperty('margin-right', '0', 'important');
+    var imgObserver = null;
+    function ensureImgObserver() {
+        if (imgObserver) return imgObserver;
+        imgObserver = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].isIntersecting) {
+                    promote(entries[i].target);
+                    imgObserver.unobserve(entries[i].target);
                 }
             }
-            node = node.parentElement;
-            hops++;
+        }, { root: null, rootMargin: '200% 0px 200% 0px', threshold: 0 });
+        return imgObserver;
+    }
+
+    function observeImages(scope) {
+        var io = ensureImgObserver();
+        var imgs = (scope || document).querySelectorAll('img');
+        for (var i = 0; i < imgs.length; i++) {
+            var img = imgs[i];
+            if (img.__slimObserved) continue;
+            img.__slimObserved = true;
+            // Something already visible (top of the chapter) loads immediately.
+            io.observe(img);
         }
     }
 
-    /* --- 3. The site's own fixed bars ------------------------------------ */
-
-    // Tagged so CSS can pad them clear of the Dynamic Island and the rounded
-    // corners. In full-bleed mode the web view runs to the physical edge, so
-    // anything the site pins to the top or bottom gets clipped by the curve
-    // unless it is inset by the safe-area insets.
-    function tagFixedBars() {
-        var found = [];
-        if (!document.body) return found;
-
-        var candidates = document.body.querySelectorAll('div, nav, header, footer, section');
-        var viewportH = window.innerHeight;
-        var viewportW = window.innerWidth;
-
-        for (var i = 0; i < candidates.length; i++) {
-            var el = candidates[i];
-            if (el.__slimreadBarChecked) {
-                if (el.classList.contains('slimread-autohide')) found.push(el);
-                continue;
-            }
-
-            var cs = window.getComputedStyle(el);
-            if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
-            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-
-            var rect = el.getBoundingClientRect();
-            var isBarShaped = rect.height > 0 && rect.height < 140 && rect.width > viewportW * 0.6;
-            if (!isBarShaped) continue;
-
-            el.__slimreadBarChecked = true;
-
-            var sitsAtBottom = rect.bottom > viewportH - 12 && rect.top > viewportH * 0.55;
-            var sitsAtTop = rect.top < 12 && rect.bottom < viewportH * 0.45;
-
-            if (sitsAtBottom) {
-                // Starts hidden. It is the only site chrome worth keeping - Prev/Next
-                // live here - so it is tap-toggled rather than removed.
-                el.classList.add('slimread-fixed-bottom', 'slimread-autohide', 'slimread-hidden');
-                found.push(el);
-            } else if (sitsAtTop) {
-                el.classList.add('slimread-fixed-top');
-            }
-        }
-        return found;
-    }
-
-    var bars = [];
-    var barsShown = false;
-
-    function setBars(show) {
-        barsShown = show;
-        for (var i = 0; i < bars.length; i++) {
-            bars[i].classList.toggle('slimread-hidden', !show);
-        }
-    }
-
-    // Scroll direction used to drive this, which is why hiding it took a pinch and an
-    // unpinch to provoke. A tap is explicit and always available.
-    var tapBound = false;
-
-    function bindBarTap() {
-        if (tapBound) return;
-        tapBound = true;
-
-        document.addEventListener('click', function (e) {
-            if (!isReaderPage() || !bars.length) return;
-
-            // Never swallow a real control: links, buttons, form fields, and the bar
-            // itself all keep working normally.
-            var t = e.target;
-            if (t && t.closest && t.closest('a, button, input, textarea, select, ' +
-                '[role="button"], .slimread-fixed-bottom')) return;
-
-            // The app's own control bar owns the top strip of the screen.
-            if (typeof e.clientY === 'number' && e.clientY < 70) return;
-
-            setBars(!barsShown);
-        }, false);
-    }
-
-    // Reaching the end of a chapter always reveals it, so Next is never a hunt.
-    function revealAtChapterEnd() {
-        if (!bars.length || barsShown) return;
-        var y = window.scrollY;
-        if ((window.innerHeight + y) >= (document.body.scrollHeight - 220)) setBars(true);
-    }
-
-    /* --- Wiring ----------------------------------------------------------
-
-       Everything expensive is reader-only, and that is the whole performance
-       story. Listing pages carry ~170 images; forcing them all to load eagerly
-       fired 170 requests at once, saturated the connection and blocked the main
-       thread long enough that taps did nothing. The site's own lazy loading is
-       already correct there - it is only inside a chapter that eager loading
-       helps, because you are certain to scroll through every panel.
+    /* --- 2. Continuous chapter scroll -----------------------------------
+       Tapas hides the next-episode URL behind a JS handler, but its episode
+       list is available as JSON at /series/{id}/episodes. We build the ordered
+       list from that, then splice the next chapter's panels straight onto the
+       end of the current one - no page reload, no flash. The address bar is
+       kept in step as each chapter scrolls under the top of the screen.
        --------------------------------------------------------------------- */
 
-    function sweep() {
-        var reader = markReader();
+    var IS = {
+        seriesId: null,
+        order: [],          // episode ids, oldest -> newest
+        page: 0,
+        hasMore: true,
+        tailId: null,       // last chapter appended into the DOM
+        headId: null,       // first chapter in the DOM (for "previous")
+        article: null,      // the container panels live in
+        sentinel: null,
+        appending: false,
+        ended: false
+    };
 
-        if (!reader) {
-            // Nothing to do. No eager loading, no bar tagging, no corner arcs, and
-            // deliberately no viewport-fit=cover: without it WebKit lays the page out
-            // inside the safe area by itself, so content cannot land under the Dynamic
-            // Island or in a rounded corner. That is free, exact, and needs no padding.
-            return;
-        }
-
-        coverViewport();
-        installCorners();
-        promoteAll();
-
-        bars = tagFixedBars();
-        if (bars.length) {
-            bindBarTap();
-            setBars(barsShown);
-        }
+    function seriesIdFromDom() {
+        var el = document.querySelector('[data-series-id]');
+        return el ? el.getAttribute('data-series-id') : null;
     }
 
-    var scrollQueued = false;
-    function onScroll() {
-        if (scrollQueued) return;
-        scrollQueued = true;
-        window.requestAnimationFrame(function () {
-            scrollQueued = false;
-            revealAtChapterEnd();
-            prefetchAhead();
+    function apiEpisodes(page) {
+        return fetch('/series/' + IS.seriesId + '/episodes?page=' + page + '&sort=OLDEST',
+            { credentials: 'include', headers: { 'x-requested-with': 'XMLHttpRequest' } })
+            .then(function (r) { return r.ok ? r.text() : null; })
+            .then(function (text) {
+                if (!text) return false;
+                var ids = [], re = /\/episode\/(\d+)/g, m;
+                while ((m = re.exec(text))) if (IS.order.indexOf(m[1]) < 0 && ids.indexOf(m[1]) < 0) ids.push(m[1]);
+                IS.order = IS.order.concat(ids);
+                var hasNext = /"has_next"\s*:\s*true/.test(text);
+                var pg = text.match(/"page"\s*:\s*(\d+)/);
+                IS.page = pg ? parseInt(pg[1], 10) : IS.page + 1;
+                IS.hasMore = hasNext;
+                return true;
+            })
+            .catch(function () { return false; });
+    }
+
+    function ensureIndexOf(id) {
+        // Load pages until the id shows up (or we run out).
+        function step() {
+            if (IS.order.indexOf(id) >= 0) return Promise.resolve(IS.order.indexOf(id));
+            if (!IS.hasMore) return Promise.resolve(IS.order.indexOf(id));
+            return apiEpisodes(IS.page + 1).then(step);
+        }
+        return step();
+    }
+
+    function nextIdAfter(id) {
+        return ensureIndexOf(id).then(function (i) {
+            if (i < 0) return null;
+            if (i >= IS.order.length - 1 && IS.hasMore) return apiEpisodes(IS.page + 1).then(function () { return IS.order[i + 1] || null; });
+            return IS.order[i + 1] || null;
         });
     }
 
-    // The observer fires for every node the page adds. Unthrottled, that is a
-    // full document.images walk per mutation on an infinite-scrolling page.
-    var promoteQueued = false;
-    function queuePromote() {
-        if (promoteQueued) return;
-        promoteQueued = true;
-        window.requestAnimationFrame(function () {
-            promoteQueued = false;
-            promoteAll();
-        });
+    function prevIdBefore(id) {
+        return ensureIndexOf(id).then(function (i) { return i > 0 ? IS.order[i - 1] : null; });
     }
 
-    // Client-side navigation does not reload the document, so the reader class
-    // and the bar tags have to be recomputed by hand.
-    function watchRouteChanges() {
+    function extractPanels(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var src = doc.querySelectorAll('.content__img');
+        var out = [];
+        for (var i = 0; i < src.length; i++) {
+            var p = src[i];
+            var real = p.getAttribute('data-src') || p.getAttribute('src');
+            if (!real || real.indexOf('data:') === 0) real = p.getAttribute('data-src');
+            if (!real) continue;
+            out.push({ src: real, w: p.getAttribute('width') || p.getAttribute('data-width'),
+                                   h: p.getAttribute('height') || p.getAttribute('data-height') });
+        }
+        var title = (doc.querySelector('title') || {}).textContent || '';
+        return { panels: out, title: title.replace(/\s*\|\s*Tapas.*$/i, '').trim() };
+    }
+
+    function appendNextChapter() {
+        if (IS.appending || IS.ended || !IS.article) return;
+        IS.appending = true;
+
+        nextIdAfter(IS.tailId).then(function (nid) {
+            if (!nid) { IS.ended = true; IS.appending = false; return; }
+            return fetch('/episode/' + nid, { credentials: 'include' })
+                .then(function (r) { return r.ok ? r.text() : null; })
+                .then(function (html) {
+                    // Network hiccup - leave the door open to try again next time.
+                    if (!html) { IS.appending = false; return; }
+
+                    var data = extractPanels(html);
+                    // Fetched fine but no panels: a locked/paid chapter or the end of
+                    // the series. Stop, rather than refetching it every scroll.
+                    if (!data.panels.length) { IS.ended = true; IS.appending = false; return; }
+
+                    var frag = document.createDocumentFragment();
+
+                    var anchor = document.createElement('div');
+                    anchor.className = 'slimread-chapter-anchor';
+                    anchor.setAttribute('data-ep-id', nid);
+                    anchor.setAttribute('data-ep-title', data.title);
+                    frag.appendChild(anchor);
+
+                    var divider = document.createElement('div');
+                    divider.className = 'slimread-chapter-divider';
+                    divider.textContent = data.title || 'Next chapter';
+                    frag.appendChild(divider);
+
+                    for (var i = 0; i < data.panels.length; i++) {
+                        var p = data.panels[i];
+                        var img = document.createElement('img');
+                        img.className = 'content__img slimread-appended';
+                        img.setAttribute('data-src', p.src);
+                        img.src = TRANSPARENT;
+                        if (p.w) img.setAttribute('width', p.w);
+                        if (p.h) img.setAttribute('height', p.h);
+                        if (p.w && p.h) img.style.aspectRatio = p.w + ' / ' + p.h;
+                        frag.appendChild(img);
+                    }
+
+                    IS.article.appendChild(frag);
+                    IS.tailId = nid;
+
+                    observeImages(IS.article);
+                    moveSentinelToEnd();
+                    watchChapterAnchor(anchor);
+
+                    IS.appending = false;
+                });
+        }).catch(function () { IS.appending = false; });
+    }
+
+    /* Address bar / saved-position tracking: when a chapter's anchor crosses the
+       top of the screen, make its episode the current URL. */
+    var anchorObserver = null;
+    function watchChapterAnchor(anchor) {
+        if (!anchorObserver) {
+            anchorObserver = new IntersectionObserver(function (entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    var e = entries[i];
+                    if (e.isIntersecting && e.boundingClientRect.top <= 2) {
+                        var id = e.target.getAttribute('data-ep-id');
+                        var title = e.target.getAttribute('data-ep-title');
+                        if (id && ('/episode/' + id) !== location.pathname) {
+                            try { history.replaceState(null, '', '/episode/' + id); } catch (x) {}
+                            if (title) document.title = title;
+                        }
+                    }
+                }
+            }, { root: null, rootMargin: '0px', threshold: 0 });
+        }
+        anchorObserver.observe(anchor);
+    }
+
+    function moveSentinelToEnd() {
+        if (!IS.article) return;
+        if (!IS.sentinel) {
+            IS.sentinel = document.createElement('div');
+            IS.sentinel.className = 'slimread-end-sentinel';
+            IS.sentinelObserver = new IntersectionObserver(function (entries) {
+                if (entries[0].isIntersecting) appendNextChapter();
+            }, { root: null, rootMargin: '300% 0px', threshold: 0 });
+            IS.sentinelObserver.observe(IS.sentinel);
+        }
+        IS.article.appendChild(IS.sentinel);   // keep it the very last child
+    }
+
+    function setupContinuousScroll() {
+        IS.seriesId = seriesIdFromDom();
+        IS.article = document.querySelector('.js-episode-article, .viewer__body');
+        var cur = currentEpisodeId();
+        if (!IS.seriesId || !IS.article || !cur) return;   // not a recognisable chapter
+
+        IS.tailId = cur;
+        IS.headId = cur;
+        moveSentinelToEnd();
+        bindPrevGesture();
+    }
+
+    /* Previous chapter: at the very top, a deliberate downward pull. Prepending
+       would fight the scroll position, so going back is a clean navigation - a
+       rare action, unlike scrolling forward. */
+    var pullStartY = 0, pullAtTop = false, prevBusy = false;
+    function scroller() { return document.scrollingElement || document.documentElement; }
+
+    function goPrev() {
+        if (prevBusy) return;
+        prevBusy = true;
+        prevIdBefore(IS.headId).then(function (pid) {
+            if (pid) location.href = '/episode/' + pid;
+            else prevBusy = false;
+        }).catch(function () { prevBusy = false; });
+    }
+
+    function bindPrevGesture() {
+        if (bindPrevGesture.done) return;
+        bindPrevGesture.done = true;
+
+        document.addEventListener('touchstart', function (e) {
+            pullStartY = e.touches[0].clientY;
+            pullAtTop = scroller().scrollTop <= 0;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function (e) {
+            if (prevBusy || !pullAtTop) return;
+            if ((e.touches[0].clientY - pullStartY) > 120 && scroller().scrollTop <= 0) goPrev();
+        }, { passive: true });
+
+        // Desktop / trackpad equivalent, and a safety net on devices without the
+        // rubber-band pull.
+        var wheelUp = 0;
+        window.addEventListener('wheel', function (e) {
+            if (prevBusy) return;
+            if (scroller().scrollTop <= 0 && e.deltaY < 0) {
+                wheelUp += -e.deltaY;
+                if (wheelUp > 240) goPrev();
+            } else { wheelUp = 0; }
+        }, { passive: true });
+    }
+
+    /* --- Wiring ---------------------------------------------------------- */
+
+    function startReader() {
+        observeImages();
+        setupContinuousScroll();
+    }
+
+    // New panels that Tapas itself streams in on the current page.
+    var mo = null;
+    function syncMutationObserver() {
+        if (isReaderPage() && !mo) {
+            mo = new MutationObserver(function () {
+                if (syncMutationObserver.queued) return;
+                syncMutationObserver.queued = true;
+                requestAnimationFrame(function () {
+                    syncMutationObserver.queued = false;
+                    observeImages(IS.article || document);
+                });
+            });
+            mo.observe(root, { childList: true, subtree: true });
+        } else if (!isReaderPage() && mo) {
+            mo.disconnect(); mo = null;
+        }
+    }
+
+    function onRouteChange() {
         var lastPath = location.pathname;
-
         function check() {
             if (location.pathname === lastPath) return;
             lastPath = location.pathname;
-            prefetchCursor = 0;
+            // A real chapter change (our own history.replaceState during continuous
+            // scroll also lands here, but IS state is already correct then).
             markReader();
-            window.requestAnimationFrame(function () {
-                sweep();
-                syncObserver();
-            });
+            syncMutationObserver();
         }
-
         ['pushState', 'replaceState'].forEach(function (name) {
-            var original = history[name];
-            if (typeof original !== 'function') return;
-            history[name] = function () {
-                var result = original.apply(this, arguments);
-                check();
-                return result;
-            };
+            var orig = history[name];
+            if (typeof orig !== 'function') return;
+            history[name] = function () { var r = orig.apply(this, arguments); check(); return r; };
         });
         window.addEventListener('popstate', check);
     }
 
-    // Observing the whole document is only worth its cost inside a chapter. On a
-    // listing page it fired on every card the site rendered, for no benefit.
-    var observer = null;
-
-    function syncObserver() {
-        var reader = isReaderPage();
-        if (reader && !observer) {
-            observer = new MutationObserver(queuePromote);
-            observer.observe(root, { childList: true, subtree: true });
-        } else if (!reader && observer) {
-            observer.disconnect();
-            observer = null;
-        }
-    }
-
-    function start() {
-        sweep();
-        syncObserver();
+    function boot() {
         showVersionBadge();
-
-        watchRouteChanges();
-
-        if (isReaderPage()) {
-            window.addEventListener('scroll', onScroll, { passive: true });
-            setTimeout(sweep, 600);
-            setTimeout(sweep, 2000);
-            window.addEventListener('load', sweep);
-        }
+        syncMutationObserver();
+        onRouteChange();
+        if (isReaderPage()) startReader();
     }
 
-    // Runs at document start, so the reader class lands before first paint and the
-    // page never flashes with the wrong layout rules. coverViewport is deliberately
-    // NOT called here - only sweep() calls it, and only for the reader.
     markReader();
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', start, { once: true });
+        document.addEventListener('DOMContentLoaded', boot, { once: true });
     } else {
-        start();
+        boot();
     }
 })();

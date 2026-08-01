@@ -7,31 +7,75 @@ vertical-scroll comics without system UI covering the artwork.
 
 ## Why this exists
 
-I read vertical-scroll comics on Tapas, and on iOS the status bar sits over the artwork for
-the entire session. Clock, battery and signal, permanently, on top of the page. There is no
-setting for it, in the app or in iOS, and no combination of Safari, Home Screen web apps or
-Guided Access removes it.
+I read vertical-scroll comics, and on iOS the system status bar sits over the artwork for the
+entire session — clock, battery and signal, permanently, on top of the page. No setting
+removes it, in the reader app or in iOS itself, and no combination of Safari, Home Screen web
+apps or Guided Access helps.
 
-That is a two-line fix for whoever maintains the iOS client. It has not been made. So this is
-the fix, built from outside: a browser that opens to Tapas and simply does not draw the
-status bar.
+For whoever maintains the reader's iOS client this is a small, well-understood change. A
+competitor already ships it on iOS, and the same reader ships it on Android
+(see [Platform parity](#platform-parity)), so neither the operating system nor the pattern is
+the obstacle. The change has simply not been made, and no feature-request channel leads
+anywhere. SlimRead is that one change, built from the outside: an ordinary web browser,
+pointed at the site I already pay to use, that does not draw the status bar over the page and
+applies a few personal reading-comfort preferences to it.
 
-To be clear about what this is not — it does not bypass paywalls, download chapters, block
-ads, or touch Tapas' business in any way. It loads the site exactly as Safari would, ads and
-analytics included, because the creators should get paid. The single difference is that the
-system UI is not drawn over their work.
+One blunt point, kept because it is the whole argument. The unauthorised copies of this work
+are, today, easier and more pleasant to read than the paid original — better layout, nothing
+covering the art, no friction. I do not use them; I read and pay through the official service
+because I want the creators supported, and I built a personal tool to make the legitimate
+experience bearable rather than giving up on it. That is the lesson for anyone shipping a
+reading product: **when the paid, legal path is worse than the free, illegal one, you teach
+your own audience to leave.** This is one reader refusing to — patching around a single
+unmet request instead of switching sides.
 
-### On platform parity
+### What this is not
 
-This is not an iOS limitation and it is not an Apple restriction. As of July 2026:
+SlimRead is a web browser. It is not a client for any service, not a replacement for any
+official app, and not affiliated with, endorsed by, or connected to any company.
 
-- The **Tapas Android app** has an immersive reading mode that hides the status bar.
-  The iOS app does not.
-- The **WEBTOON iOS app** hides the status bar while reading, on the same operating system,
+- It **hosts and redistributes nothing.** Every page, image and byte is loaded live from the
+  service's own servers, over your own logged-in session, exactly as a browser would.
+- It **touches no payment, account, or content system.** You sign in to the service directly.
+  Subscriptions, purchases, unlocks and creator payouts all happen on the service, under its
+  terms, and belong entirely to it. SlimRead never sees or handles any of it.
+- It **circumvents nothing.** No paywall or DRM bypass, no ad-stripping of monetised content,
+  no downloading or offline copying. Locked chapters stay locked.
+- It **makes no money.** There is no monetisation of any kind, now or planned.
+
+What it *does* change is presentation, on the reader's own device: it hides the OS status bar
+and restyles the page for reading — the same category of thing a browser's reader mode, zoom,
+or a personal userstyle does with content already delivered to that device.
+
+### Legal & disclaimer
+
+SlimRead is a general-purpose WebKit browser with a default homepage and a set of personal
+display tweaks — CSS and JavaScript applied to pages *after* they load, in the browser, on the
+user's own device. Changing how a page is presented in your own browser, for your own use, is
+ordinary browser behaviour: it is the same mechanism behind reader modes, zoom, dark-mode
+extensions and userstyles.
+
+Because it redistributes no content, circumvents no access controls, and interferes with no
+payment or account system, SlimRead is intended and designed for personal, non-infringing
+use. It is not affiliated with or endorsed by any content platform or its operators. All
+trademarks, content and services referenced belong to their respective owners, and any use of
+a third-party service through SlimRead is governed entirely by that service's own terms.
+
+This document is not legal advice, and the software is provided "as is", without warranty of
+any kind. You are responsible for your own use and for complying with the terms of any
+service you access through it.
+
+### Platform parity
+
+This is not an iOS limitation and not an Apple restriction. As of July 2026:
+
+- The reader's **Android app** has an immersive mode that hides the status bar. Its **iOS
+  app** does not.
+- **WEBTOON's iOS app** hides the status bar while reading, on the same operating system,
   using the same public API used here.
 
-A competitor ships it on iOS today, and Tapas already ships it on Android. Neither the
-platform nor the pattern is the obstacle.
+A competitor ships it on iOS today, and the same reader already ships it on Android. Neither
+the platform nor the pattern is the obstacle.
 
 ### Why the web platform can't do this
 
@@ -53,13 +97,15 @@ A native app has no such restriction. A view controller returning `true` from
 - **Tap the top of the screen** — the notch or Dynamic Island — to show the controls. They
   slide away when you scroll down, or after six seconds.
 - **Edge-swipe navigation.** Swipe in from the left edge to go back, right edge to go forward.
-- **Page corners match the display,** rather than square content against rounded glass.
-- **Live tweaks.** Layout and loading behaviour are driven by CSS and JS pulled from this
+- **Nothing clipped by the display.** The page is inset to the safe area, so content never
+  falls under the Dynamic Island or into a rounded corner. Artwork stays full width.
+- **Live tweaks.** Layout and reading behaviour are driven by CSS and JS pulled from this
   repository at every launch — see [Live tweaks](#live-tweaks).
-- **Faster image loading.** Lazy-loaded panels are promoted immediately and the next few are
-  prefetched, with a 512 MB disk cache so re-reads are instant.
-- **Site chrome tamed.** Persistent bottom bars slide away while scrolling and return at the
-  end of a chapter.
+- **Progressive image loading.** Panels load about two screens ahead of where you are, in
+  order, so the visible page is never starved by everything below it loading at once.
+- **Continuous chapters.** Reaching the end of a chapter seamlessly appends the next one;
+  pulling up past the very top goes to the previous. No chapter-end wall of comments and
+  recommendations — just the art.
 - **Built-in guide,** shown on first launch and available from the **?** button.
 - **Session persistence.** Cookies survive, so logins stick. Reopening returns to the last page.
 
@@ -94,12 +140,16 @@ compliant.
 | Swipe in from the left edge | Back |
 | Swipe in from the right edge | Forward |
 | Scroll down | Controls get out of the way automatically |
+| Keep scrolling past a chapter's end | The next chapter loads and continues inline |
+| Pull up past the very top of a chapter | Jump to the previous chapter |
 
 Control bar buttons, left to right: back, forward, reload, home, full-bleed toggle, guide.
 
-The **full-bleed toggle** switches between filling the entire display (artwork passes under
-the Dynamic Island) and staying inside the safe area. Full-bleed is the default; turn it off
-if the sensor housing clips something you need to see.
+The page is always inset from the top and bottom safe areas, so nothing is ever hidden under
+the Dynamic Island or clipped by a rounded corner. The **full-bleed toggle** controls the
+left and right edges: on (the default) the artwork runs edge to edge, which in portrait is
+simply full width; off keeps it inside the horizontal safe area, which only matters in
+landscape on notched devices.
 
 ## Live tweaks
 
@@ -109,11 +159,12 @@ from this repository each time the app launches or returns to the foreground.
 **Edit `tweaks/tweaks.css` or `tweaks/tweaks.js`, push, reopen the app.** The change is live.
 No rebuild, no re-signing, no reinstall, no PC.
 
-- `tweaks.css` — layout. Removing the white margins beside artwork, black backgrounds,
-  hiding cookie banners and app-install interstitials.
-- `tweaks.js` — behaviour. Promoting lazy-loaded images, prefetching the next few panels,
-  clearing inline widths CSS can't override, and sliding the site's fixed bottom bar away
-  while scrolling.
+- `tweaks.css` — layout. Full-width panels, black backgrounds, and hiding on-page chrome
+  inside a chapter (top bar, bottom toolbar, comments, recommendations), scoped so listing
+  pages are left alone.
+- `tweaks.js` — behaviour. Progressive panel loading, and the continuous chapter scroll:
+  reading the ordered episode list from the site's own JSON, then splicing the next chapter's
+  panels onto the end of the current one as you reach it.
 
 Both are written defensively, with broad selectors, because site markup changes without
 warning. If a rule is too aggressive, delete it — the worst case is that the page renders

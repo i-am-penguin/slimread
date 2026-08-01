@@ -1,20 +1,15 @@
 /* ===========================================================================
    SlimRead page tweaks - LIVE FILE
    ---------------------------------------------------------------------------
-   The app fetches this from GitHub every time it launches or returns to the
-   foreground. Edit, commit, push, then reopen the app. No rebuild, no
-   re-signing, no reinstall.
+   Fetched from GitHub every launch and when the app returns to the foreground.
+   Edit, commit, push, reopen the app. No rebuild, no re-signing, no reinstall.
 
-   Deliberately defensive: selectors are broad because site markup changes.
-   If something here is too aggressive, delete the block - worst case the page
-   renders the way it does in Safari.
+   Layout-affecting rules are scoped to `.slimread-reader`, which tweaks.js puts
+   on <html> only on episode pages. Listing pages (home, series, search) are
+   left alone so their thumbnail grids render normally.
 
-   IMPORTANT: the width-flattening rules are scoped to `.slimread-reader`,
-   which tweaks.js puts on <html> only on episode/viewer pages. They must stay
-   that way. Applied site-wide they hit the cover-thumbnail grid on the home
-   and series pages, forcing each card to full width while the image inside
-   keeps its own size - which shows up as small thumbnails with a wide black
-   border around them.
+   The app's native layout insets the web view to the safe area, so there is no
+   notch, home indicator, or rounded corner for CSS to work around here.
    =========================================================================== */
 
 /* --- Everywhere ---------------------------------------------------------- */
@@ -24,87 +19,6 @@ html, body {
     overflow-x: hidden !important;
 }
 
-/*
-   Black is for the reader only.
-
-   Forcing it site-wide was the cover-thumbnail bug: tapas.io has a white body and
-   fully transparent containers around every cover, so the normal grid spacing that
-   used to blend into white suddenly read as a thick black border round each one.
-   The thumbnails never changed size - everything behind them went black.
-*/
-.slimread-reader,
-.slimread-reader body {
-    background: #000 !important;
-    padding: 0 !important;
-}
-
-/* --- Rounded display corners --------------------------------------------
-   The web view runs to the physical edge in full-bleed, so page content is cut
-   by the display's corner curve. Two halves to fixing that:
-
-     1. Keep content out of the corners  - the safe-area padding below.
-     2. Make the cut look deliberate     - the four corner arcs.
-
-   Both live here rather than in native code so they apply to every installed
-   copy on the next launch, with no sideload. --slimread-corner is measured on
-   the device by tweaks.js.
-   ------------------------------------------------------------------------ */
-
-:root {
-    --slimread-corner: 0px;
-}
-
-/*
-   Listing pages get NO padding here, on purpose.
-
-   Padding the body was the top-bar bug: it pushed the whole page down by the
-   safe-area inset while the site's own sticky header - which tweaks.js had also
-   tagged and padded - moved down again, leaving the hero banner showing through
-   the gap. Two insets for one notch.
-
-   Instead tweaks.js simply withholds viewport-fit=cover outside the reader, and
-   WebKit lays the page out inside the safe area on its own. Exact, no padding,
-   nothing to double up.
-*/
-
-.slimread-corner {
-    position: fixed !important;
-    width: var(--slimread-corner) !important;
-    height: var(--slimread-corner) !important;
-    z-index: 2147483646 !important;
-    pointer-events: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-}
-
-/* Each arc is a quarter circle of transparency inside a black square, with the
-   circle centred on the far corner of that square. */
-.slimread-corner-tl {
-    top: 0 !important; left: 0 !important;
-    background: radial-gradient(circle at 100% 100%,
-        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
-}
-
-.slimread-corner-tr {
-    top: 0 !important; right: 0 !important;
-    background: radial-gradient(circle at 0 100%,
-        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
-}
-
-.slimread-corner-bl {
-    bottom: 0 !important; left: 0 !important;
-    background: radial-gradient(circle at 100% 0,
-        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
-}
-
-.slimread-corner-br {
-    bottom: 0 !important; right: 0 !important;
-    background: radial-gradient(circle at 0 0,
-        transparent 0, transparent var(--slimread-corner), #000 var(--slimread-corner)) !important;
-}
-
-/* Never let an image overflow its column. Safe on any page. */
 img {
     max-width: 100% !important;
 }
@@ -120,45 +34,11 @@ img {
     display: none !important;
 }
 
-/* --- The site's own fixed bars ------------------------------------------- */
-/*
-   In full-bleed mode the web view runs to the physical edge of the display,
-   so anything the site pins to the top or bottom is clipped by the rounded
-   corners and sits under the Dynamic Island. tweaks.js tags those bars and
-   forces viewport-fit=cover so these env() insets resolve to real numbers.
-
-   The horizontal padding is what keeps the leftmost and rightmost controls
-   out of the corner curve - the insets themselves are zero in portrait.
-*/
-
-/* The site's own top bar holds nothing you need mid-chapter and it covers the
-   artwork. Inside the reader it goes entirely - no tapping it away each time. */
-.slimread-reader .slimread-fixed-top {
-    display: none !important;
-}
-
-/* The bottom bar is the opposite - Prev/Next live there. It stays, hidden by
-   default, and a single tap on the artwork toggles it. */
-.slimread-fixed-bottom {
-    box-sizing: border-box !important;
-    padding-left: max(env(safe-area-inset-left, 0px), 16px) !important;
-    padding-right: max(env(safe-area-inset-right, 0px), 16px) !important;
-
-    /* Just enough to lift Prev/Next clear of the home indicator.
-       The full safe-area inset is 34px, and adding all of it grew the bar into a
-       thick empty black band under the controls. Roughly half clears the indicator
-       without the void. */
-    padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) * 0.5), 10px) !important;
-}
-
-/* --- Version badge -------------------------------------------------------
-   Shown by tweaks.js for ~2s, once per TWEAKS_VERSION, to confirm from the
-   phone that a tweaks push landed. Sits below the Dynamic Island.
-   ------------------------------------------------------------------------- */
+/* --- Version badge (shown ~2s by tweaks.js to confirm a push landed) ------ */
 
 .slimread-badge {
     position: fixed !important;
-    top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+    top: 10px !important;
     right: 12px !important;
     z-index: 2147483647 !important;
     background: rgba(0, 0, 0, 0.82) !important;
@@ -172,41 +52,52 @@ img {
     transition: opacity 0.45s ease !important;
 }
 
-.slimread-badge-out {
-    opacity: 0 !important;
-}
-
-/* Smooth the transition when tweaks.js slides the bottom bar away. */
-.slimread-autohide {
-    transition: transform 0.22s ease, opacity 0.22s ease !important;
-}
-
-.slimread-hidden {
-    transform: translateY(130%) !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
+.slimread-badge-out { opacity: 0 !important; }
 
 /* --- Reader pages only --------------------------------------------------- */
-/*
-   Kill the white letterboxing around episode art. Scoped to .slimread-reader.
-   Containers commonly used to constrain reading width.
-*/
 
-.slimread-reader .container,
-.slimread-reader .content,
+.slimread-reader,
+.slimread-reader body {
+    background: #000 !important;
+    padding: 0 !important;
+}
+
+/* Tapas's own chrome inside a chapter - all removed, artwork only.
+     .top-nav / .vw-nav  the fixed bars at the top
+     .toolbar            the fixed bottom bar (heart / comments / prev / next)
+     comment + recommend the sections below the last panel
+   Chapter-to-chapter movement is handled by the continuous scroll in tweaks.js,
+   so none of these are needed. */
+.slimread-reader .top-nav,
+.slimread-reader .vw-nav,
+.slimread-reader .toolbar,
+.slimread-reader .viewer-bottom,
+.slimread-reader #comment-section,
+.slimread-reader .viewer-section--comment,
+.slimread-reader .viewer-section--recommend,
+.slimread-reader .js-recommendations,
+.slimread-reader .js-comments {
+    display: none !important;
+}
+
+/* Any scroll-position / progress gauge the site pins to the edge - it breaks
+   immersion, and the app has no chrome of its own to match it to. */
+.slimread-reader [class*="progress-bar"],
+.slimread-reader [class*="scroll-indicator"],
+.slimread-reader [class*="page-indicator"],
+.slimread-reader [class*="reading-progress"] {
+    display: none !important;
+}
+
+/* Flatten the reading-width containers so panels fill the screen. */
 .slimread-reader .viewer,
 .slimread-reader .viewer__body,
-.slimread-reader .viewer-body,
-.slimread-reader .episode,
-.slimread-reader .episode__content,
-.slimread-reader .ep-content,
+.slimread-reader .js-episode-article,
+.slimread-reader .content,
 .slimread-reader main,
 .slimread-reader article,
 .slimread-reader [class*="viewer"],
-.slimread-reader [class*="Viewer"],
-.slimread-reader [class*="episode"],
-.slimread-reader [class*="Episode"] {
+.slimread-reader [class*="episode"] {
     max-width: 100% !important;
     width: 100% !important;
     margin-left: 0 !important;
@@ -216,19 +107,13 @@ img {
     background: #000 !important;
 }
 
-/*
-   The art itself: edge to edge, no gaps between panels.
-
-   `:not()` keeps avatars, rating stars and share icons out of it - they live
-   inside the same containers and were being stretched to the full screen width.
-*/
-.slimread-reader .viewer img,
+/* The panels: edge to edge, no seams. object-fit guards against any stray
+   inline sizing on the appended images. */
+.slimread-reader .content__img,
 .slimread-reader .viewer__body img,
-.slimread-reader [class*="viewer"] img,
-.slimread-reader [class*="episode"] img,
 .slimread-reader article img {
     display: block !important;
-    max-width: 100% !important;
+    width: 100% !important;
     height: auto !important;
     margin: 0 auto !important;
     padding: 0 !important;
@@ -236,25 +121,21 @@ img {
     vertical-align: top !important;
 }
 
-/* Full width for the panels themselves, which are the wide images. Anything
-   small enough to be an icon keeps its natural size. */
-.slimread-reader .viewer img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
-.slimread-reader .viewer__body img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
-.slimread-reader [class*="viewer"] img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
-.slimread-reader [class*="episode"] img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]),
-.slimread-reader article img:not([width]):not([class*="icon"]):not([class*="avatar"]):not([class*="thumb"]) {
+/* Divider marking where one chapter ends and the next begins. */
+.slimread-chapter-divider {
+    box-sizing: border-box !important;
     width: 100% !important;
+    padding: 22px 16px !important;
+    margin: 0 !important;
+    background: #000 !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+    font: 600 13px/1.3 -apple-system, system-ui, sans-serif !important;
+    text-align: center !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
-/* The persistent bottom navigation bar is handled by tweaks.js, which slides
-   it away while you scroll and brings it back at the end of the chapter.
-   Uncomment to remove it outright instead. */
-/*
-.slimread-reader [class*="bottom-bar"],
-.slimread-reader [class*="bottomBar"],
-.slimread-reader [class*="BottomBar"],
-.slimread-reader [class*="ep-nav"],
-.slimread-reader [class*="episode-nav"] {
-    display: none !important;
-}
-*/
+/* Zero-height markers - never take up space. */
+.slimread-chapter-anchor { display: block !important; width: 100% !important; height: 0 !important; }
+.slimread-end-sentinel   { display: block !important; width: 100% !important; height: 1px !important; }

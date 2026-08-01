@@ -22,6 +22,28 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so the changelog below can look back to the last tag
+
+      - name: Build the changelog
+        id: changelog
+        run: |
+          prev=$(git describe --tags --abbrev=0 --exclude "v${{ inputs.version }}" 2>/dev/null || true)
+          {
+            echo 'notes<<CHANGELOG_EOF'
+            if [ -n "$prev" ]; then
+              echo "### Changes since $prev"
+              echo ""
+              git log --no-merges --pretty='- %s' "$prev"..HEAD
+            else
+              echo "### Changes"
+              echo ""
+              git log --no-merges --pretty='- %s' -n 20
+            fi
+            echo ""
+            echo "Build ${{ github.run_number }} of ${{ github.sha }}"
+            echo CHANGELOG_EOF
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build (unsigned)
         run: |
@@ -51,5 +73,5 @@ jobs:
         run: |
           gh release create "v${{ inputs.version }}" SlimRead.ipa \
             --title "SlimRead ${{ inputs.version }}" \
-            --notes "Automated build of ${{ github.sha }}" \
+            --notes "${{ steps.changelog.outputs.notes }}" \
             --latest
