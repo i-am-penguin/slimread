@@ -25,7 +25,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.10 b5 01 Aug 17:49';
+    var TWEAKS_VERSION = '1.11 b6 01 Aug 18:07';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -53,6 +53,33 @@
         var on = isReaderPage();
         root.classList.toggle('slimread-reader', on);
         return on;
+    }
+
+    /* --- Edge to edge -----------------------------------------------------
+       Without viewport-fit=cover WebKit lays the page out INSIDE the safe area
+       even when the web view fills the screen - which shows up as a thick black
+       bar above and below the page. Applied on every page, not just the reader,
+       because the listing pages need it just as much.
+       --------------------------------------------------------------------- */
+    function coverViewport() {
+        var metas = document.querySelectorAll('meta[name="viewport"]');
+
+        if (!metas.length) {
+            // <head> may not exist yet at document start; boot() calls this again.
+            if (!document.head) return;
+            var meta = document.createElement('meta');
+            meta.setAttribute('name', 'viewport');
+            meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');
+            document.head.appendChild(meta);
+            return;
+        }
+
+        for (var i = 0; i < metas.length; i++) {
+            var content = metas[i].getAttribute('content') || '';
+            if (!/viewport-fit\s*=\s*cover/i.test(content)) {
+                metas[i].setAttribute('content', content.replace(/\s*,\s*$/, '') + ', viewport-fit=cover');
+            }
+        }
     }
 
     /* --- 1. Progressive image loading -----------------------------------
@@ -375,13 +402,16 @@
     }
 
     function boot() {
+        coverViewport();
         showVersionBadge();
         syncMutationObserver();
         onRouteChange();
         if (isReaderPage()) startReader();
     }
 
+    // Both run at document start so the page never paints inset and then jump.
     markReader();
+    coverViewport();
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', boot, { once: true });

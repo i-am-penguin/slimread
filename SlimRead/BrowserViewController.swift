@@ -39,8 +39,8 @@ final class BrowserViewController: UIViewController {
     private var lastScrollOffset: CGFloat = 0
 
     private var controlsTop: NSLayoutConstraint!
-    private var webLeading: NSLayoutConstraint!
-    private var webTrailing: NSLayoutConstraint!
+    private var webTop: NSLayoutConstraint!
+    private var webBottom: NSLayoutConstraint!
 
     private var fullBleed: Bool {
         didSet {
@@ -151,19 +151,18 @@ final class BrowserViewController: UIViewController {
         webView.scrollView.decelerationRate = .normal
         view.addSubview(webView)
 
-        // Vertical edges are ALWAYS pinned to the safe area. That is the whole corner
-        // fix: content never reaches the notch, Dynamic Island, home indicator, or the
-        // rounded display corners, so nothing is ever clipped and no corner mask, arc,
-        // or padding hack is needed. The strips those insets leave are the view's own
-        // black background. Only the horizontal edges change with full-bleed.
-        webLeading = webView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
-        webTrailing = webView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        // Edge to edge by default. Insetting to the safe area does remove the corner
+        // clipping, but on a Dynamic Island phone it costs 59pt at the top and 34pt at
+        // the bottom - a black frame around the artwork, which is far worse for reading
+        // than a corner that does not match the glass.
+        webTop = webView.topAnchor.constraint(equalTo: view.topAnchor)
+        webBottom = webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
 
         NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            webLeading,
-            webTrailing
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webTop,
+            webBottom
         ])
     }
 
@@ -255,21 +254,21 @@ final class BrowserViewController: UIViewController {
     // MARK: - Layout modes
 
     private func applyLayoutMode() {
-        webLeading.isActive = false
-        webTrailing.isActive = false
+        webTop.isActive = false
+        webBottom.isActive = false
 
         if fullBleed {
-            // Edge to edge. In portrait the horizontal safe-area inset is zero, so this
-            // is simply full width; in landscape it reaches under a side notch.
-            webLeading = webView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
-            webTrailing = webView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+            webTop = webView.topAnchor.constraint(equalTo: view.topAnchor)
+            webBottom = webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         } else {
-            webLeading = webView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor)
-            webTrailing = webView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor)
+            // The escape hatch, not the default: inset to the safe area for anyone who
+            // would rather lose the edges than have the sensor housing cross the art.
+            webTop = webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
+            webBottom = webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
         }
 
-        webLeading.isActive = true
-        webTrailing.isActive = true
+        webTop.isActive = true
+        webBottom.isActive = true
 
         UIView.animate(withDuration: 0.2) {
             self.view.layoutIfNeeded()

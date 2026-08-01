@@ -97,8 +97,8 @@ A native app has no such restriction. A view controller returning `true` from
 - **Tap the top of the screen** — the notch or Dynamic Island — to show the controls. They
   slide away when you scroll down, or after six seconds.
 - **Edge-swipe navigation.** Swipe in from the left edge to go back, right edge to go forward.
-- **Nothing clipped by the display.** The page is inset to the safe area, so content never
-  falls under the Dynamic Island or into a rounded corner. Artwork stays full width.
+- **Genuinely edge to edge.** The artwork fills the entire display, corner to corner and
+  under the sensor housing. No letterboxing, no black frame.
 - **Live tweaks.** Layout and reading behaviour are driven by CSS and JS pulled from this
   repository at every launch — see [Live tweaks](#live-tweaks).
 - **Progressive image loading.** Panels load about two screens ahead of where you are, in
@@ -145,11 +145,15 @@ compliant.
 
 Control bar buttons, left to right: back, forward, reload, home, full-bleed toggle, guide.
 
-The page is always inset from the top and bottom safe areas, so nothing is ever hidden under
-the Dynamic Island or clipped by a rounded corner. The **full-bleed toggle** controls the
-left and right edges: on (the default) the artwork runs edge to edge, which in portrait is
-simply full width; off keeps it inside the horizontal safe area, which only matters in
-landscape on notched devices.
+The **full-bleed toggle** switches between filling the entire display and staying inside the
+safe area. Full-bleed is the default, and is the point of the app: the artwork runs to all
+four edges and under the sensor housing.
+
+The trade is that the display's rounded corners clip whatever is in them, and the Dynamic
+Island sits over the page. That is deliberate. Insetting to the safe area avoids it, but on a
+Dynamic Island phone costs 59pt at the top and 34pt at the bottom — a permanent black frame
+around the artwork, which is worse for reading than a corner that doesn't match the glass.
+Turn the toggle off if you disagree; it is there for exactly that.
 
 ## Live tweaks
 
