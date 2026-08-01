@@ -80,6 +80,13 @@ img {
     display: none !important;
 }
 
+/* Safety net. tweaks.js sets this when it cannot drive chapters itself (markup
+   changed, series id missing, offline). Without it the toolbar above would stay
+   hidden and there would be no way to reach the next chapter at all. */
+.slimread-no-continuous .toolbar {
+    display: revert !important;
+}
+
 /* Any scroll-position / progress gauge the site pins to the edge - it breaks
    immersion, and the app has no chrome of its own to match it to. */
 .slimread-reader [class*="progress-bar"],

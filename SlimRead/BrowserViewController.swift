@@ -147,7 +147,7 @@ final class BrowserViewController: UIViewController {
         webView.isOpaque = true
         webView.scrollView.backgroundColor = .black
         webView.scrollView.contentInsetAdjustmentBehavior = .never
-        webView.scrollView.showsVerticalScrollIndicator = false
+        hideScrollIndicators()
         webView.scrollView.decelerationRate = .normal
         view.addSubview(webView)
 
@@ -164,6 +164,14 @@ final class BrowserViewController: UIViewController {
             webTop,
             webBottom
         ])
+    }
+
+    /// Setting this once at creation is not enough - WebKit re-enables the indicator
+    /// on navigation, which is why the translucent bar reappears after a page load.
+    /// Re-asserted on every commit and finish.
+    private func hideScrollIndicators() {
+        webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.showsHorizontalScrollIndicator = false
     }
 
     private func makeUserContentController() -> WKUserContentController {
@@ -485,10 +493,12 @@ extension BrowserViewController: WKNavigationDelegate {
         // to the old version" symptom. Re-applying here costs nothing and removes the
         // timing question entirely.
         webView.evaluateJavaScript(TweaksLoader.cssInstallScript(TweaksLoader.cached.css))
+        hideScrollIndicators()
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         saveState()
+        hideScrollIndicators()
         lastScrollOffset = webView.scrollView.contentOffset.y
     }
 }

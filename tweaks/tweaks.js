@@ -3,16 +3,21 @@
    ---------------------------------------------------------------------------
    Fetched from GitHub at launch. Edit, push, reopen the app. No rebuild.
 
-   Everything here is scoped to the episode reader. Listing pages (home, series,
-   search) are left completely alone - the app's native layout already insets
-   the web view to the safe area, so there are no corners or notch to fight.
+   The app draws the page edge to edge, under the sensor housing and into the
+   rounded corners - so this file adds viewport-fit=cover everywhere, and the
+   reader work below is scoped to episode pages only. Listing pages keep the
+   site's own grid.
 
    Reader jobs:
-     1. Load panels progressively as you approach them (fast, no request storm).
-     2. Continuous chapter scroll: reaching the end seamlessly appends the next
-        chapter; pulling up past the very top goes to the previous one.
-     3. Strip Tapas's own chrome inside a chapter - top bar, bottom toolbar,
+     1. Load panels ahead of where you are, with a real concurrency limit.
+     2. Continuous chapter scroll: reaching the end appends the next chapter;
+        pulling down at the very top goes back to the previous one.
+     3. Strip the site's chrome inside a chapter - top bar, bottom toolbar,
         comments, recommendations - so only the artwork remains.
+
+   Deliberately no IntersectionObserver anywhere. Scroll position and
+   getBoundingClientRect are directly measurable and testable; an earlier
+   IntersectionObserver version had a rootMargin bug that silently never fired.
    =========================================================================== */
 
 (function () {
@@ -25,7 +30,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.11 b6 01 Aug 18:07';
+    var TWEAKS_VERSION = '1.12 b7 01 Aug 18:18';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -55,25 +60,18 @@
         return on;
     }
 
-    /* --- Edge to edge -----------------------------------------------------
-       Without viewport-fit=cover WebKit lays the page out INSIDE the safe area
-       even when the web view fills the screen - which shows up as a thick black
-       bar above and below the page. Applied on every page, not just the reader,
-       because the listing pages need it just as much.
-       --------------------------------------------------------------------- */
+    /* --- Edge to edge ---------------------------------------------------- */
+
     function coverViewport() {
         var metas = document.querySelectorAll('meta[name="viewport"]');
-
         if (!metas.length) {
-            // <head> may not exist yet at document start; boot() calls this again.
-            if (!document.head) return;
+            if (!document.head) return;   // too early; boot() calls this again
             var meta = document.createElement('meta');
             meta.setAttribute('name', 'viewport');
             meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');
             document.head.appendChild(meta);
             return;
         }
-
         for (var i = 0; i < metas.length; i++) {
             var content = metas[i].getAttribute('content') || '';
             if (!/viewport-fit\s*=\s*cover/i.test(content)) {
@@ -82,77 +80,132 @@
         }
     }
 
-    /* --- 1. Progressive image loading -----------------------------------
-       An IntersectionObserver loads each panel ~2 screens before it is needed.
-       This replaced forcing every panel eager at once, which fired one request
-       per panel the instant a chapter opened - saturating the connection and
-       blocking the main thread (the "cannot tap anything" freeze). Panels keep
-       their width/height attributes, so space is reserved and nothing reflows.
+    /* --- 1. Panel loading -------------------------------------------------
+       A forward-only cursor walks the panel list, starting loads while fewer
+       than MAX_CONCURRENT are in flight and the panel is within LOOKAHEAD
+       screens. Each completed load immediately pumps the next, so the pipe
+       stays full without ever firing a whole chapter's worth of requests at
+       once - that burst is what used to lock up the UI.
+
+       Quality: the site serves one resolution per panel via data-src (940px
+       wide JPEG, no srcset, no size parameters). That is the maximum
+       available, and it is exactly what is used - nothing here downscales.
        --------------------------------------------------------------------- */
 
     var LAZY_ATTRS = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-echo'];
     var TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-    function promote(img) {
-        if (img.__slimreadDone) return;
-        img.__slimreadDone = true;
+    // Panels are tall (1300-1900px), so a "screen" of lookahead is well under one
+    // panel. Six screens keeps roughly 3-4 panels queued ahead of the viewport.
+    var LOOKAHEAD = 6;        // screens of panels to keep loading ahead
+    var MAX_CONCURRENT = 8;   // simultaneous panel downloads (one HTTP/2 origin)
+    var EAGER_FIRST = 4;      // panels loaded instantly on open, before any scroll
 
+    var inflight = 0;
+    var loadCursor = 0;
+
+    function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
             var v = img.getAttribute(LAZY_ATTRS[i]);
-            if (v && img.getAttribute('src') !== v) { img.setAttribute('src', v); break; }
+            if (v && v.indexOf('data:') !== 0) return v;
         }
-        var ss = img.getAttribute('data-srcset');
-        if (ss && img.getAttribute('srcset') !== ss) img.setAttribute('srcset', ss);
+        return null;   // nothing lazy here - already carrying a real src
+    }
+
+    /* DNS, TCP and TLS to the image CDN cost a round trip each, and they are
+       otherwise paid at the moment the first panel is requested. Warming the
+       connection while the HTML is still parsing takes that off the critical
+       path for every panel that follows. */
+    function preconnectImageHost() {
+        if (preconnectImageHost.done || !document.head) return;
+        var probe = document.querySelector('.content__img');
+        var url = probe && lazyURL(probe);
+        if (!url) return;
+        var origin;
+        try { origin = new URL(url, location.href).origin; } catch (e) { return; }
+        preconnectImageHost.done = true;
+        ['preconnect', 'dns-prefetch'].forEach(function (rel) {
+            var l = document.createElement('link');
+            l.rel = rel;
+            l.href = origin;
+            l.crossOrigin = 'anonymous';
+            document.head.appendChild(l);
+        });
+    }
+
+    function panelNodes() {
+        // Live collection - newly appended chapters appear automatically.
+        return (IS.article || document).getElementsByTagName('img');
+    }
+
+    function startLoad(img) {
+        if (img.__slimreadDone) return false;
+        img.__slimreadDone = true;
+
+        var real = lazyURL(img);
+        if (!real) return false;          // nothing lazy about it; leave it alone
+
+        inflight++;
+        var settle = function () {
+            inflight--;
+            img.removeEventListener('load', settle);
+            img.removeEventListener('error', settle);
+            pumpImages();                 // a slot freed up - keep the pipe full
+        };
+        img.addEventListener('load', settle);
+        img.addEventListener('error', settle);
 
         img.loading = 'eager';
         img.decoding = 'async';
+        // The panels you are about to look at outrank everything else the page
+        // still wants to fetch.
+        try { img.fetchPriority = 'high'; } catch (e) {}
+        img.setAttribute('fetchpriority', 'high');
+        img.setAttribute('src', real);
+        return true;
     }
 
-    var imgObserver = null;
-    function ensureImgObserver() {
-        if (imgObserver) return imgObserver;
-        imgObserver = new IntersectionObserver(function (entries) {
-            for (var i = 0; i < entries.length; i++) {
-                if (entries[i].isIntersecting) {
-                    promote(entries[i].target);
-                    imgObserver.unobserve(entries[i].target);
-                }
-            }
-        }, { root: null, rootMargin: '200% 0px 200% 0px', threshold: 0 });
-        return imgObserver;
+    var pumpQueued = false;
+    function queuePump() {
+        if (pumpQueued) return;
+        pumpQueued = true;
+        requestAnimationFrame(function () { pumpQueued = false; pumpImages(); });
     }
 
-    function observeImages(scope) {
-        var io = ensureImgObserver();
-        var imgs = (scope || document).querySelectorAll('img');
-        for (var i = 0; i < imgs.length; i++) {
-            var img = imgs[i];
-            if (img.__slimObserved) continue;
-            img.__slimObserved = true;
-            // Something already visible (top of the chapter) loads immediately.
-            io.observe(img);
+    function pumpImages() {
+        var imgs = panelNodes();
+        var limitY = window.scrollY + window.innerHeight * (1 + LOOKAHEAD);
+
+        while (loadCursor < imgs.length && inflight < MAX_CONCURRENT) {
+            var img = imgs[loadCursor];
+            var top = img.getBoundingClientRect().top + window.scrollY;
+            if (top > limitY) break;      // far enough ahead - stop, keep the cursor
+            loadCursor++;
+            startLoad(img);
         }
     }
 
-    /* --- 2. Continuous chapter scroll -----------------------------------
-       Tapas hides the next-episode URL behind a JS handler, but its episode
-       list is available as JSON at /series/{id}/episodes. We build the ordered
-       list from that, then splice the next chapter's panels straight onto the
-       end of the current one - no page reload, no flash. The address bar is
-       kept in step as each chapter scrolls under the top of the screen.
-       --------------------------------------------------------------------- */
+    function loadFirstPanels() {
+        var imgs = panelNodes();
+        var n = Math.min(imgs.length, EAGER_FIRST);
+        for (var i = 0; i < n; i++) startLoad(imgs[i]);
+        if (loadCursor < n) loadCursor = n;
+    }
+
+    /* --- 2. Continuous chapter scroll ------------------------------------ */
 
     var IS = {
         seriesId: null,
-        order: [],          // episode ids, oldest -> newest
+        order: [],
         page: 0,
         hasMore: true,
-        tailId: null,       // last chapter appended into the DOM
-        headId: null,       // first chapter in the DOM (for "previous")
-        article: null,      // the container panels live in
-        sentinel: null,
+        tailId: null,
+        headId: null,
+        article: null,
+        blocks: [],        // { id, title, anchor } per appended chapter
         appending: false,
-        ended: false
+        ended: false,
+        active: false
     };
 
     function seriesIdFromDom() {
@@ -167,22 +220,25 @@
             .then(function (text) {
                 if (!text) return false;
                 var ids = [], re = /\/episode\/(\d+)/g, m;
-                while ((m = re.exec(text))) if (IS.order.indexOf(m[1]) < 0 && ids.indexOf(m[1]) < 0) ids.push(m[1]);
+                while ((m = re.exec(text))) {
+                    if (IS.order.indexOf(m[1]) < 0 && ids.indexOf(m[1]) < 0) ids.push(m[1]);
+                }
                 IS.order = IS.order.concat(ids);
-                var hasNext = /"has_next"\s*:\s*true/.test(text);
+                IS.hasMore = /"has_next"\s*:\s*true/.test(text);
                 var pg = text.match(/"page"\s*:\s*(\d+)/);
                 IS.page = pg ? parseInt(pg[1], 10) : IS.page + 1;
-                IS.hasMore = hasNext;
+                // No new ids and no next page: stop, or ensureIndexOf would spin.
+                if (!ids.length && !IS.hasMore) return false;
                 return true;
             })
-            .catch(function () { return false; });
+            .catch(function () { IS.hasMore = false; return false; });
     }
 
     function ensureIndexOf(id) {
-        // Load pages until the id shows up (or we run out).
+        var guard = 0;
         function step() {
-            if (IS.order.indexOf(id) >= 0) return Promise.resolve(IS.order.indexOf(id));
-            if (!IS.hasMore) return Promise.resolve(IS.order.indexOf(id));
+            var i = IS.order.indexOf(id);
+            if (i >= 0 || !IS.hasMore || guard++ > 40) return Promise.resolve(i);
             return apiEpisodes(IS.page + 1).then(step);
         }
         return step();
@@ -191,7 +247,9 @@
     function nextIdAfter(id) {
         return ensureIndexOf(id).then(function (i) {
             if (i < 0) return null;
-            if (i >= IS.order.length - 1 && IS.hasMore) return apiEpisodes(IS.page + 1).then(function () { return IS.order[i + 1] || null; });
+            if (i >= IS.order.length - 1 && IS.hasMore) {
+                return apiEpisodes(IS.page + 1).then(function () { return IS.order[i + 1] || null; });
+            }
             return IS.order[i + 1] || null;
         });
     }
@@ -206,18 +264,24 @@
         var out = [];
         for (var i = 0; i < src.length; i++) {
             var p = src[i];
-            var real = p.getAttribute('data-src') || p.getAttribute('src');
-            if (!real || real.indexOf('data:') === 0) real = p.getAttribute('data-src');
+            var real = p.getAttribute('data-src');
+            if (!real) {
+                var s = p.getAttribute('src');
+                if (s && s.indexOf('data:') !== 0) real = s;
+            }
             if (!real) continue;
-            out.push({ src: real, w: p.getAttribute('width') || p.getAttribute('data-width'),
-                                   h: p.getAttribute('height') || p.getAttribute('data-height') });
+            out.push({
+                src: real,
+                w: p.getAttribute('width') || p.getAttribute('data-width'),
+                h: p.getAttribute('height') || p.getAttribute('data-height')
+            });
         }
         var title = (doc.querySelector('title') || {}).textContent || '';
-        return { panels: out, title: title.replace(/\s*\|\s*Tapas.*$/i, '').trim() };
+        return { panels: out, title: title.replace(/\s*\|\s*Tapas.*$/i, '').replace(/^Read\s+/i, '').trim() };
     }
 
     function appendNextChapter() {
-        if (IS.appending || IS.ended || !IS.article) return;
+        if (!IS.active || IS.appending || IS.ended || !IS.article) return;
         IS.appending = true;
 
         nextIdAfter(IS.tailId).then(function (nid) {
@@ -225,20 +289,16 @@
             return fetch('/episode/' + nid, { credentials: 'include' })
                 .then(function (r) { return r.ok ? r.text() : null; })
                 .then(function (html) {
-                    // Network hiccup - leave the door open to try again next time.
-                    if (!html) { IS.appending = false; return; }
+                    if (!html) { IS.appending = false; return; }   // network blip, retry later
 
                     var data = extractPanels(html);
-                    // Fetched fine but no panels: a locked/paid chapter or the end of
-                    // the series. Stop, rather than refetching it every scroll.
+                    // Fetched fine but no panels: locked/paid chapter, or the end.
                     if (!data.panels.length) { IS.ended = true; IS.appending = false; return; }
 
                     var frag = document.createDocumentFragment();
 
                     var anchor = document.createElement('div');
                     anchor.className = 'slimread-chapter-anchor';
-                    anchor.setAttribute('data-ep-id', nid);
-                    anchor.setAttribute('data-ep-title', data.title);
                     frag.appendChild(anchor);
 
                     var divider = document.createElement('div');
@@ -251,135 +311,160 @@
                         var img = document.createElement('img');
                         img.className = 'content__img slimread-appended';
                         img.setAttribute('data-src', p.src);
-                        img.src = TRANSPARENT;
+                        img.setAttribute('src', TRANSPARENT);
                         if (p.w) img.setAttribute('width', p.w);
                         if (p.h) img.setAttribute('height', p.h);
+                        // Reserves the right height before the panel loads, so the
+                        // scroll position never jumps as chapters stream in.
                         if (p.w && p.h) img.style.aspectRatio = p.w + ' / ' + p.h;
                         frag.appendChild(img);
                     }
 
                     IS.article.appendChild(frag);
                     IS.tailId = nid;
-
-                    observeImages(IS.article);
-                    moveSentinelToEnd();
-                    watchChapterAnchor(anchor);
+                    IS.blocks.push({ id: nid, title: data.title, anchor: anchor });
 
                     IS.appending = false;
+                    queuePump();
                 });
         }).catch(function () { IS.appending = false; });
     }
 
-    /* Address bar / saved-position tracking: when a chapter's anchor crosses the
-       top of the screen, make its episode the current URL. */
-    var anchorObserver = null;
-    function watchChapterAnchor(anchor) {
-        if (!anchorObserver) {
-            anchorObserver = new IntersectionObserver(function (entries) {
-                for (var i = 0; i < entries.length; i++) {
-                    var e = entries[i];
-                    if (e.isIntersecting && e.boundingClientRect.top <= 2) {
-                        var id = e.target.getAttribute('data-ep-id');
-                        var title = e.target.getAttribute('data-ep-title');
-                        if (id && ('/episode/' + id) !== location.pathname) {
-                            try { history.replaceState(null, '', '/episode/' + id); } catch (x) {}
-                            if (title) document.title = title;
-                        }
-                    }
-                }
-            }, { root: null, rootMargin: '0px', threshold: 0 });
+    /* Keep the URL and title in step with whichever chapter is under the top of
+       the screen. Measured on scroll rather than observed - a zero-height anchor
+       plus a top-edge condition is exactly the case IntersectionObserver does
+       not report. */
+    function updateChapterURL() {
+        if (!IS.blocks.length) return;
+        var current = null;
+        for (var i = 0; i < IS.blocks.length; i++) {
+            if (IS.blocks[i].anchor.getBoundingClientRect().top <= 1) current = IS.blocks[i];
+            else break;
         }
-        anchorObserver.observe(anchor);
+        var id = current ? current.id : IS.headId;
+        var title = current ? current.title : null;
+        if (id && ('/episode/' + id) !== location.pathname) {
+            try { history.replaceState(null, '', '/episode/' + id); } catch (e) {}
+            if (title) document.title = title;
+        }
     }
 
-    function moveSentinelToEnd() {
-        if (!IS.article) return;
-        if (!IS.sentinel) {
-            IS.sentinel = document.createElement('div');
-            IS.sentinel.className = 'slimread-end-sentinel';
-            IS.sentinelObserver = new IntersectionObserver(function (entries) {
-                if (entries[0].isIntersecting) appendNextChapter();
-            }, { root: null, rootMargin: '300% 0px', threshold: 0 });
-            IS.sentinelObserver.observe(IS.sentinel);
-        }
-        IS.article.appendChild(IS.sentinel);   // keep it the very last child
+    function maybeAppend() {
+        if (!IS.active) return;
+        var doc = document.documentElement;
+        var remaining = doc.scrollHeight - (window.scrollY + window.innerHeight);
+        if (remaining < window.innerHeight * 2.5) appendNextChapter();
+    }
+
+    /* Previous chapter. Prepending would fight the scroll position, so this is a
+       real navigation - and it lands at the BOTTOM of that chapter, which is
+       where you were reading from. */
+    var LAND_KEY = 'slimread.landAtBottom';
+    var prevBusy = false;
+
+    function goPrev() {
+        if (prevBusy || !IS.active) return;
+        prevBusy = true;
+        prevIdBefore(IS.headId).then(function (pid) {
+            if (!pid) { prevBusy = false; return; }
+            try { sessionStorage.setItem(LAND_KEY, pid); } catch (e) {}
+            location.href = '/episode/' + pid;
+        }).catch(function () { prevBusy = false; });
+    }
+
+    function applyLandAtBottom() {
+        var want;
+        try { want = sessionStorage.getItem(LAND_KEY); } catch (e) { return; }
+        if (!want || want !== currentEpisodeId()) return;
+        try { sessionStorage.removeItem(LAND_KEY); } catch (e) {}
+
+        // Panels reserve their height, so the page is already the right length;
+        // settle it over a few frames as the last panels decode.
+        var tries = 0;
+        (function settle() {
+            window.scrollTo(0, document.documentElement.scrollHeight);
+            if (tries++ < 12) setTimeout(settle, 120);
+        })();
+    }
+
+    var pullStartY = 0, pullFromTop = false;
+    function bindPrevGesture() {
+        document.addEventListener('touchstart', function (e) {
+            pullStartY = e.touches[0].clientY;
+            pullFromTop = window.scrollY <= 0;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function (e) {
+            if (prevBusy || !pullFromTop) return;
+            if (window.scrollY > 0) { pullFromTop = false; return; }
+            if ((e.touches[0].clientY - pullStartY) > 130) goPrev();
+        }, { passive: true });
+
+        var wheelUp = 0;
+        window.addEventListener('wheel', function (e) {
+            if (prevBusy) return;
+            if (window.scrollY <= 0 && e.deltaY < 0) {
+                wheelUp += -e.deltaY;
+                if (wheelUp > 260) goPrev();
+            } else wheelUp = 0;
+        }, { passive: true });
     }
 
     function setupContinuousScroll() {
         IS.seriesId = seriesIdFromDom();
         IS.article = document.querySelector('.js-episode-article, .viewer__body');
         var cur = currentEpisodeId();
-        if (!IS.seriesId || !IS.article || !cur) return;   // not a recognisable chapter
 
+        if (!IS.seriesId || !IS.article || !cur) {
+            // Cannot drive chapters ourselves. The CSS hides the site's own
+            // toolbar, so without this the reader would be stranded with no way
+            // to reach the next chapter at all.
+            root.classList.add('slimread-no-continuous');
+            return;
+        }
+
+        IS.active = true;
         IS.tailId = cur;
         IS.headId = cur;
-        moveSentinelToEnd();
         bindPrevGesture();
-    }
-
-    /* Previous chapter: at the very top, a deliberate downward pull. Prepending
-       would fight the scroll position, so going back is a clean navigation - a
-       rare action, unlike scrolling forward. */
-    var pullStartY = 0, pullAtTop = false, prevBusy = false;
-    function scroller() { return document.scrollingElement || document.documentElement; }
-
-    function goPrev() {
-        if (prevBusy) return;
-        prevBusy = true;
-        prevIdBefore(IS.headId).then(function (pid) {
-            if (pid) location.href = '/episode/' + pid;
-            else prevBusy = false;
-        }).catch(function () { prevBusy = false; });
-    }
-
-    function bindPrevGesture() {
-        if (bindPrevGesture.done) return;
-        bindPrevGesture.done = true;
-
-        document.addEventListener('touchstart', function (e) {
-            pullStartY = e.touches[0].clientY;
-            pullAtTop = scroller().scrollTop <= 0;
-        }, { passive: true });
-
-        document.addEventListener('touchmove', function (e) {
-            if (prevBusy || !pullAtTop) return;
-            if ((e.touches[0].clientY - pullStartY) > 120 && scroller().scrollTop <= 0) goPrev();
-        }, { passive: true });
-
-        // Desktop / trackpad equivalent, and a safety net on devices without the
-        // rubber-band pull.
-        var wheelUp = 0;
-        window.addEventListener('wheel', function (e) {
-            if (prevBusy) return;
-            if (scroller().scrollTop <= 0 && e.deltaY < 0) {
-                wheelUp += -e.deltaY;
-                if (wheelUp > 240) goPrev();
-            } else { wheelUp = 0; }
-        }, { passive: true });
+        applyLandAtBottom();
     }
 
     /* --- Wiring ---------------------------------------------------------- */
 
-    function startReader() {
-        observeImages();
-        setupContinuousScroll();
+    var scrollQueued = false;
+    function onScroll() {
+        if (scrollQueued) return;
+        scrollQueued = true;
+        requestAnimationFrame(function () {
+            scrollQueued = false;
+            pumpImages();
+            updateChapterURL();
+            maybeAppend();
+        });
     }
 
-    // New panels that Tapas itself streams in on the current page.
+    function startReader() {
+        setupContinuousScroll();
+        preconnectImageHost();
+        loadFirstPanels();
+        pumpImages();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', queuePump, { passive: true });
+        window.addEventListener('load', queuePump);
+        setTimeout(queuePump, 500);
+        setTimeout(queuePump, 1500);
+    }
+
+    // Panels the site itself streams into the current chapter.
     var mo = null;
     function syncMutationObserver() {
         if (isReaderPage() && !mo) {
-            mo = new MutationObserver(function () {
-                if (syncMutationObserver.queued) return;
-                syncMutationObserver.queued = true;
-                requestAnimationFrame(function () {
-                    syncMutationObserver.queued = false;
-                    observeImages(IS.article || document);
-                });
-            });
+            mo = new MutationObserver(queuePump);
             mo.observe(root, { childList: true, subtree: true });
         } else if (!isReaderPage() && mo) {
-            mo.disconnect(); mo = null;
+            mo.disconnect();
+            mo = null;
         }
     }
 
@@ -388,8 +473,6 @@
         function check() {
             if (location.pathname === lastPath) return;
             lastPath = location.pathname;
-            // A real chapter change (our own history.replaceState during continuous
-            // scroll also lands here, but IS state is already correct then).
             markReader();
             syncMutationObserver();
         }
@@ -409,7 +492,7 @@
         if (isReaderPage()) startReader();
     }
 
-    // Both run at document start so the page never paints inset and then jump.
+    // Both at document start, so the page never paints with the wrong rules.
     markReader();
     coverViewport();
 
