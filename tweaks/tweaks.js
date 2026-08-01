@@ -15,9 +15,11 @@
      3. Strip the site's chrome inside a chapter - top bar, bottom toolbar,
         comments, recommendations - so only the artwork remains.
 
-   Deliberately no IntersectionObserver anywhere. Scroll position and
-   getBoundingClientRect are directly measurable and testable; an earlier
-   IntersectionObserver version had a rootMargin bug that silently never fired.
+   Panel loading is driven by an IntersectionObserver, deliberately. iOS keeps
+   computing intersections during momentum scrolling but suspends
+   requestAnimationFrame until the scroll settles, so a scroll+rAF loader stops
+   dead the moment the page is flicked. Versions 1.12-1.14 did exactly that and
+   stopped loading mid-chapter; 1.11 and earlier used the observer and did not.
    =========================================================================== */
 
 (function () {
@@ -30,7 +32,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.14 b9 01 Aug 18:37';
+    var TWEAKS_VERSION = '1.15 b10 01 Aug 18:46';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -81,11 +83,10 @@
     }
 
     /* --- 1. Panel loading -------------------------------------------------
-       A forward-only cursor walks the panel list, starting loads while fewer
-       than MAX_CONCURRENT are in flight and the panel is within LOOKAHEAD
-       screens. Each completed load immediately pumps the next, so the pipe
-       stays full without ever firing a whole chapter's worth of requests at
-       once - that burst is what used to lock up the UI.
+       Each panel is handed to an IntersectionObserver with a wide margin, and
+       loads when it comes within range. No concurrency limiter: the browser's
+       own connection scheduling handles that, and every home-made queue tried
+       here so far has found a new way to wedge itself.
 
        Quality: the site serves one resolution per panel via data-src (940px
        wide JPEG, no srcset, no size parameters). That is the maximum
@@ -95,27 +96,9 @@
     var LAZY_ATTRS = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-echo'];
     var TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-    // Panels are tall (1300-1900px), so a "screen" of lookahead is well under one
-    // panel. Six screens keeps roughly 3-4 panels queued ahead of the viewport.
-    var LOOKAHEAD = 5;        // screens of panels to keep loading ahead
-    var KEEP_BEHIND = 2;      // screens of already-read panels to keep decoded
-    var MAX_CONCURRENT = 8;   // simultaneous panel downloads (one HTTP/2 origin)
-    var EAGER_FIRST = 4;      // panels loaded instantly on open, before any scroll
-    var RECYCLE_AFTER = 10;   // don't bother recycling until this many are decoded
-
-    // Hard ceiling on decoded panels, whatever the screen size. ~6.4 MB each, so
-    // this caps image memory near 115 MB. The window rule alone is proportional to
-    // viewport height, which on a tall viewport still climbed past 250 MB.
-    //
-    // This cannot be raised to anything like 1 GB. iOS gives a web content process
-    // a few hundred MB of image memory before it stops decoding or is killed - that
-    // limit is the bug being fixed here, not a setting to opt out of. Recycled
-    // panels reload from the HTTP cache rather than the network, so a lower ceiling
-    // costs a decode, not a download.
-    var MAX_DECODED = 18;
-
-    var inflight = 0;
-    var decoded = 0;          // panels currently holding decoded pixels
+    // How far ahead panels start loading, as a percentage of the viewport.
+    // 300% is three screens - comfortably more than one panel's height.
+    var LOAD_MARGIN = '300% 0px 300% 0px';
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
@@ -151,44 +134,12 @@
         return (IS.article || document).getElementsByTagName('img');
     }
 
-    function startLoad(img) {
-        if (img.__slimreadDone) return false;
+    function promote(img) {
+        if (img.__slimreadDone) return;
         img.__slimreadDone = true;
 
         var real = lazyURL(img);
-        if (!real) return false;          // nothing lazy about it; leave it alone
-
-        // Already carrying this exact URL and decoded: assigning it again fires no
-        // load event, so taking a slot for it would leak one permanently.
-        if (img.getAttribute('src') === real && img.complete && img.naturalWidth > 1) {
-            return false;
-        }
-
-        inflight++;
-
-        var settled = false;
-        var timer = null;
-        var settle = function () {
-            if (settled) return;          // load AND error can both arrive
-            settled = true;
-            inflight--;
-            if (timer) clearTimeout(timer);
-            img.removeEventListener('load', settle);
-            img.removeEventListener('error', settle);
-            if (img.naturalWidth > 1) {
-                img.__slimreadLoaded = true;
-                decoded++;
-            }
-            queuePump();                  // a slot freed up - keep the pipe full
-        };
-
-        img.addEventListener('load', settle);
-        img.addEventListener('error', settle);
-
-        // Backstop. A slot that never settles stalls every later panel, which is
-        // exactly how loading died mid-chapter: enough stuck slots and the pump
-        // could never start anything again.
-        timer = setTimeout(settle, 20000);
+        if (!real) return;                // nothing lazy about it; leave it alone
 
         img.loading = 'eager';
         img.decoding = 'async';
@@ -198,106 +149,37 @@
         img.setAttribute('fetchpriority', 'high');
 
         if (img.getAttribute('src') !== real) img.setAttribute('src', real);
-
-        // A cached image can finish before the listener is ever called.
-        if (img.complete && img.naturalWidth > 1) settle();
-        return true;
     }
 
-    var pumpQueued = false;
-    function queuePump() {
-        if (pumpQueued) return;
-        pumpQueued = true;
-        requestAnimationFrame(function () {
-            pumpQueued = false;
-            // Recycle before loading more. Every completed load routes through here,
-            // so memory is reclaimed as fast as it is spent - not only on scroll.
-            recycleFarPanels();
-            pumpImages();
-        });
+    /* An IntersectionObserver is what drives loading, and that choice matters.
+       On iOS, intersections keep being computed during momentum scrolling, while
+       requestAnimationFrame callbacks are suspended until the scroll settles. A
+       scroll+rAF version of this loop therefore stopped loading anything the
+       moment you flicked the page - which is exactly how loading "stopped" from
+       1.12 onward. Left alone, WebKit also manages decoded-image memory for
+       off-screen images by itself, so nothing here needs to unload them. */
+    var imgObserver = null;
+
+    function ensureImgObserver() {
+        if (imgObserver) return imgObserver;
+        imgObserver = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                if (!entries[i].isIntersecting) continue;
+                promote(entries[i].target);
+                imgObserver.unobserve(entries[i].target);
+            }
+        }, { root: null, rootMargin: LOAD_MARGIN, threshold: 0 });
+        return imgObserver;
     }
 
-    function pumpImages() {
-        var imgs = panelNodes();
-        var limitY = window.scrollY + window.innerHeight * (1 + LOOKAHEAD);
-
-        // No saved index. A forward-only cursor into a LIVE collection skips panels
-        // for good the moment the site inserts or removes a node, which is the other
-        // half of why loading stopped part-way through a chapter. Scanning is cheap
-        // because finished panels cost one property read and never a layout query.
-        for (var i = 0; i < imgs.length && inflight < MAX_CONCURRENT; i++) {
-            var img = imgs[i];
-            if (img.__slimreadDone) continue;
-
-            var top = img.getBoundingClientRect().top + window.scrollY;
-            if (top > limitY) break;      // in document order, so everything after is further
-            startLoad(img);
-        }
-    }
-
-    function loadFirstPanels() {
-        var imgs = panelNodes();
-        var n = Math.min(imgs.length, EAGER_FIRST);
-        for (var i = 0; i < n; i++) startLoad(imgs[i]);
-    }
-
-    /* --- Recycling --------------------------------------------------------
-       A decoded panel costs width*height*4 bytes - about 6.4 MB each at the
-       940x1699 the site serves. Thirty of them is nearly 200 MB, a whole
-       chapter over 600 MB, and continuous scroll never stops adding more. iOS
-       caps decoded image memory per web content process well below that, and
-       once it is reached nothing new decodes: panels keep their reserved height
-       but come out blank. That is what "it stopped loading new images" is.
-
-       So panels far outside the viewport give their pixels back. The box is
-       pinned to the image's own aspect ratio first, so the page does not move,
-       and the panel simply reloads if it is scrolled back to.
-       --------------------------------------------------------------------- */
-    function releasePanel(img) {
-        // Freeze the height BEFORE dropping the pixels. width:100% plus height:auto
-        // means aspect-ratio is what holds the box open, and an inline aspect-ratio
-        // survives the stylesheet's `height: auto !important`.
-        if (!img.style.aspectRatio && img.naturalWidth > 1 && img.naturalHeight > 1) {
-            img.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
-        }
-        img.setAttribute('src', TRANSPARENT);
-        img.__slimreadLoaded = false;
-        img.__slimreadDone = false;        // eligible to load again on the way back
-        decoded--;
-    }
-
-    function recycleFarPanels() {
-        if (decoded < RECYCLE_AFTER) return;
-
-        var imgs = panelNodes();
-        var vh = window.innerHeight;
-        var centre = window.scrollY + vh / 2;
-        var keepFrom = window.scrollY - vh * KEEP_BEHIND;
-        var keepTo = window.scrollY + vh * (1 + LOOKAHEAD);
-
-        var live = [];
+    function observeImages(scope) {
+        var io = ensureImgObserver();
+        var imgs = (scope || IS.article || document).getElementsByTagName('img');
         for (var i = 0; i < imgs.length; i++) {
             var img = imgs[i];
-            if (!img.__slimreadLoaded) continue;
-
-            var r = img.getBoundingClientRect();
-            var top = r.top + window.scrollY;
-            var bottom = r.bottom + window.scrollY;
-
-            if (bottom < keepFrom || top > keepTo) {
-                releasePanel(img);         // outside the keep window
-            } else {
-                live.push({ img: img, dist: Math.abs((top + bottom) / 2 - centre) });
-            }
-        }
-
-        // Hard ceiling: on a tall viewport the window above can still hold far too
-        // much. Drop the furthest-from-view survivors until under the cap.
-        if (decoded > MAX_DECODED) {
-            live.sort(function (a, b) { return b.dist - a.dist; });
-            for (var j = 0; j < live.length && decoded > MAX_DECODED; j++) {
-                releasePanel(live[j].img);
-            }
+            if (img.__slimObserved || img.__slimreadDone) continue;
+            img.__slimObserved = true;
+            io.observe(img);
         }
     }
 
@@ -434,7 +316,7 @@
                     IS.blocks.push({ id: nid, title: data.title, anchor: anchor });
 
                     IS.appending = false;
-                    queuePump();
+                    observeImages(IS.article);   // hand the new panels to the observer
                 });
         }).catch(function () { IS.appending = false; });
     }
@@ -541,14 +423,16 @@
 
     /* --- Wiring ---------------------------------------------------------- */
 
+    // Image loading is NOT driven from here - the observer handles it, including
+    // during momentum scrolling when these callbacks do not run. This only keeps
+    // the URL current and decides when to append the next chapter, neither of
+    // which is urgent enough to care about a paused frame or two.
     var scrollQueued = false;
     function onScroll() {
         if (scrollQueued) return;
         scrollQueued = true;
         requestAnimationFrame(function () {
             scrollQueued = false;
-            recycleFarPanels();   // free memory first, so the loads below have room
-            pumpImages();
             updateChapterURL();
             maybeAppend();
         });
@@ -557,20 +441,23 @@
     function startReader() {
         setupContinuousScroll();
         preconnectImageHost();
-        loadFirstPanels();
-        pumpImages();
+        observeImages();
         window.addEventListener('scroll', onScroll, { passive: true });
-        window.addEventListener('resize', queuePump, { passive: true });
-        window.addEventListener('load', queuePump);
-        setTimeout(queuePump, 500);
-        setTimeout(queuePump, 1500);
+        window.addEventListener('load', function () { observeImages(); });
+        setTimeout(function () { observeImages(); }, 500);
+        setTimeout(function () { observeImages(); }, 1500);
     }
 
     // Panels the site itself streams into the current chapter.
     var mo = null;
+    var moQueued = false;
     function syncMutationObserver() {
         if (isReaderPage() && !mo) {
-            mo = new MutationObserver(queuePump);
+            mo = new MutationObserver(function () {
+                if (moQueued) return;
+                moQueued = true;
+                requestAnimationFrame(function () { moQueued = false; observeImages(); });
+            });
             mo.observe(root, { childList: true, subtree: true });
         } else if (!isReaderPage() && mo) {
             mo.disconnect();
