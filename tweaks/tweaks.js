@@ -30,7 +30,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.13 b8 01 Aug 18:25';
+    var TWEAKS_VERSION = '1.14 b9 01 Aug 18:37';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -97,11 +97,25 @@
 
     // Panels are tall (1300-1900px), so a "screen" of lookahead is well under one
     // panel. Six screens keeps roughly 3-4 panels queued ahead of the viewport.
-    var LOOKAHEAD = 6;        // screens of panels to keep loading ahead
+    var LOOKAHEAD = 5;        // screens of panels to keep loading ahead
+    var KEEP_BEHIND = 2;      // screens of already-read panels to keep decoded
     var MAX_CONCURRENT = 8;   // simultaneous panel downloads (one HTTP/2 origin)
     var EAGER_FIRST = 4;      // panels loaded instantly on open, before any scroll
+    var RECYCLE_AFTER = 10;   // don't bother recycling until this many are decoded
+
+    // Hard ceiling on decoded panels, whatever the screen size. ~6.4 MB each, so
+    // this caps image memory near 115 MB. The window rule alone is proportional to
+    // viewport height, which on a tall viewport still climbed past 250 MB.
+    //
+    // This cannot be raised to anything like 1 GB. iOS gives a web content process
+    // a few hundred MB of image memory before it stops decoding or is killed - that
+    // limit is the bug being fixed here, not a setting to opt out of. Recycled
+    // panels reload from the HTTP cache rather than the network, so a lower ceiling
+    // costs a decode, not a download.
+    var MAX_DECODED = 18;
 
     var inflight = 0;
+    var decoded = 0;          // panels currently holding decoded pixels
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
@@ -161,6 +175,10 @@
             if (timer) clearTimeout(timer);
             img.removeEventListener('load', settle);
             img.removeEventListener('error', settle);
+            if (img.naturalWidth > 1) {
+                img.__slimreadLoaded = true;
+                decoded++;
+            }
             queuePump();                  // a slot freed up - keep the pipe full
         };
 
@@ -190,7 +208,13 @@
     function queuePump() {
         if (pumpQueued) return;
         pumpQueued = true;
-        requestAnimationFrame(function () { pumpQueued = false; pumpImages(); });
+        requestAnimationFrame(function () {
+            pumpQueued = false;
+            // Recycle before loading more. Every completed load routes through here,
+            // so memory is reclaimed as fast as it is spent - not only on scroll.
+            recycleFarPanels();
+            pumpImages();
+        });
     }
 
     function pumpImages() {
@@ -215,6 +239,66 @@
         var imgs = panelNodes();
         var n = Math.min(imgs.length, EAGER_FIRST);
         for (var i = 0; i < n; i++) startLoad(imgs[i]);
+    }
+
+    /* --- Recycling --------------------------------------------------------
+       A decoded panel costs width*height*4 bytes - about 6.4 MB each at the
+       940x1699 the site serves. Thirty of them is nearly 200 MB, a whole
+       chapter over 600 MB, and continuous scroll never stops adding more. iOS
+       caps decoded image memory per web content process well below that, and
+       once it is reached nothing new decodes: panels keep their reserved height
+       but come out blank. That is what "it stopped loading new images" is.
+
+       So panels far outside the viewport give their pixels back. The box is
+       pinned to the image's own aspect ratio first, so the page does not move,
+       and the panel simply reloads if it is scrolled back to.
+       --------------------------------------------------------------------- */
+    function releasePanel(img) {
+        // Freeze the height BEFORE dropping the pixels. width:100% plus height:auto
+        // means aspect-ratio is what holds the box open, and an inline aspect-ratio
+        // survives the stylesheet's `height: auto !important`.
+        if (!img.style.aspectRatio && img.naturalWidth > 1 && img.naturalHeight > 1) {
+            img.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+        }
+        img.setAttribute('src', TRANSPARENT);
+        img.__slimreadLoaded = false;
+        img.__slimreadDone = false;        // eligible to load again on the way back
+        decoded--;
+    }
+
+    function recycleFarPanels() {
+        if (decoded < RECYCLE_AFTER) return;
+
+        var imgs = panelNodes();
+        var vh = window.innerHeight;
+        var centre = window.scrollY + vh / 2;
+        var keepFrom = window.scrollY - vh * KEEP_BEHIND;
+        var keepTo = window.scrollY + vh * (1 + LOOKAHEAD);
+
+        var live = [];
+        for (var i = 0; i < imgs.length; i++) {
+            var img = imgs[i];
+            if (!img.__slimreadLoaded) continue;
+
+            var r = img.getBoundingClientRect();
+            var top = r.top + window.scrollY;
+            var bottom = r.bottom + window.scrollY;
+
+            if (bottom < keepFrom || top > keepTo) {
+                releasePanel(img);         // outside the keep window
+            } else {
+                live.push({ img: img, dist: Math.abs((top + bottom) / 2 - centre) });
+            }
+        }
+
+        // Hard ceiling: on a tall viewport the window above can still hold far too
+        // much. Drop the furthest-from-view survivors until under the cap.
+        if (decoded > MAX_DECODED) {
+            live.sort(function (a, b) { return b.dist - a.dist; });
+            for (var j = 0; j < live.length && decoded > MAX_DECODED; j++) {
+                releasePanel(live[j].img);
+            }
+        }
     }
 
     /* --- 2. Continuous chapter scroll ------------------------------------ */
@@ -463,6 +547,7 @@
         scrollQueued = true;
         requestAnimationFrame(function () {
             scrollQueued = false;
+            recycleFarPanels();   // free memory first, so the loads below have room
             pumpImages();
             updateChapterURL();
             maybeAppend();
