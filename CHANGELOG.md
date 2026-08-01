@@ -8,6 +8,14 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.19 - 2026-08-01
+- Panel loading now rolls forward with you. Reaching any panel starts the next 12
+  after it, so the loaded region always stays that deep ahead of wherever you are
+  - previously only the start of each chapter was preloaded, and the rest relied
+  on a fixed distance from the viewport that a fast scroll could outrun.
+- The buffer carries across chapter boundaries, stepping over the divider so the
+  first panels of the next chapter are already loading before you reach them.
+
 ## v1.18 - 2026-08-01
 - Fix the endless scroll stopping after 20 episodes. The episode-list API returns
   the NEXT page number in its "page" field, not the current one, so asking for

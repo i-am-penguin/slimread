@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.18 b13 01 Aug 22:47';
+    var TWEAKS_VERSION = '1.19 b14 01 Aug 22:59';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -98,24 +98,20 @@
     var LAZY_ATTRS = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-echo'];
     var TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-    // How far ahead panels start loading, as a percentage of the viewport.
+    // When a panel comes within this much of the viewport it is considered
+    // "reached", which starts the rolling window below. Kept moderate on purpose -
+    // the depth of the buffer is AHEAD_PANELS' job, not this one's.
+    var LOAD_MARGIN = '600% 0px 600% 0px';
+
+    // The buffer that travels with you. Reaching any panel also starts the next
+    // AHEAD_PANELS after it, so the loaded region rolls forward as you read and is
+    // always this many panels deep - not just at the start of a chapter.
     //
-    // This is the one knob that decides whether a panel is ready before you reach
-    // it. Panels are around 1700px tall against a ~850px screen, so 300% (2550px)
-    // was only about 1.5 panels of warning - enough to see the black gap while the
-    // download and decode finish. 800% is roughly 4 panels ahead, which covers
-    // several seconds of reading.
-    //
-    // It stays proportional to the viewport, not the document, so a bigger number
-    // does not mean loading the whole chapter at once: at 800% only the handful of
-    // panels within ~6800px are ever in flight.
-    //
-    // Turn it down if it ever feels heavy on cellular; turn it up if a black gap
-    // comes back. Nothing else needs to change.
-    var LOAD_MARGIN = '1600% 0px 1600% 0px';
+    // At ~1700px each that is roughly 20,000px of artwork ready ahead of you.
+    var AHEAD_PANELS = 12;
 
     // Panels loaded the instant a chapter is entered, without waiting for the
-    // observer. Covers the first stretch so a new chapter opens already drawn.
+    // observer, so a chapter opens already drawn rather than filling in.
     var PRIME_COUNT = 12;
 
     function lazyURL(img) {
@@ -169,6 +165,23 @@
         if (img.getAttribute('src') !== real) img.setAttribute('src', real);
     }
 
+    /* Reaching a panel also starts the ones after it, so the loaded region rolls
+       forward with you instead of being a fixed distance from the viewport.
+
+       Walks siblings rather than indexing a live collection: chapter anchors and
+       dividers sit between panels, and appended chapters continue the same sibling
+       chain, so this keeps working straight across a chapter boundary. Costs
+       AHEAD_PANELS steps, once per panel reached. */
+    function promoteAhead(img) {
+        promote(img);
+        var node = img, started = 0;
+        while (node && started < AHEAD_PANELS) {
+            node = node.nextElementSibling;
+            if (!node) break;
+            if (node.tagName === 'IMG') { promote(node); started++; }
+        }
+    }
+
     /* An IntersectionObserver is what drives loading, and that choice matters.
        On iOS, intersections keep being computed during momentum scrolling, while
        requestAnimationFrame callbacks are suspended until the scroll settles. A
@@ -183,7 +196,7 @@
         imgObserver = new IntersectionObserver(function (entries) {
             for (var i = 0; i < entries.length; i++) {
                 if (!entries[i].isIntersecting) continue;
-                promote(entries[i].target);
+                promoteAhead(entries[i].target);
                 imgObserver.unobserve(entries[i].target);
             }
         }, { root: null, rootMargin: LOAD_MARGIN, threshold: 0 });
