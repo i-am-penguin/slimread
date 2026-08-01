@@ -8,6 +8,16 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.20 - 2026-08-01
+- Fix the endless scroll stopping at the bottom of a chapter. Appending was only
+  ever triggered from the scroll handler, so once you were AT the end there was no
+  scrolling left to fire it, and a chapter short enough to arrive near the bottom
+  never appended at all. A slow watchdog now checks independently of scrolling.
+- Prime-ahead for appended chapters walked text nodes instead of elements, wasting
+  iterations between panels.
+- Guide text corrected: it still described tapping anywhere along the top to show
+  the controls, and did not mention continuous chapters or the next-chapter button.
+
 ## v1.19 - 2026-08-01
 - Panel loading now rolls forward with you. Reaching any panel starts the next 12
   after it, so the loaded region always stays that deep ahead of wherever you are

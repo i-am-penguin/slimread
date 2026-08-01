@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.19 b14 01 Aug 22:59';
+    var TWEAKS_VERSION = '1.20 b15 01 Aug 23:02';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -409,10 +409,27 @@
     }
 
     function maybeAppend() {
-        if (!IS.active) return;
+        if (!IS.active || IS.ended) return;
         var doc = document.documentElement;
         var remaining = doc.scrollHeight - (window.scrollY + window.innerHeight);
         if (remaining < window.innerHeight * 2.5) appendNextChapter();
+    }
+
+    /* Safety net for appending.
+       The scroll handler was the only thing that ever called maybeAppend, which
+       fails in two ways: a chapter short enough to sit near the bottom on arrival
+       never triggers one, and once you are AT the bottom there is no scrolling
+       left to fire the check - so the reader just stops. iOS also suspends
+       requestAnimationFrame during momentum scrolling, delaying it further.
+       A slow timer costs one scrollHeight read and removes all three. */
+    var appendTimer = null;
+    function startAppendWatchdog() {
+        if (appendTimer) return;
+        appendTimer = setInterval(function () {
+            if (!IS.active) return;
+            if (IS.ended) { clearInterval(appendTimer); appendTimer = null; return; }
+            maybeAppend();
+        }, 700);
     }
 
     /* There is deliberately no scroll-up-for-previous-chapter gesture.
@@ -497,9 +514,12 @@
        first few panels of that chapter only. */
     function primeFrom(anchor, count) {
         var node = anchor, done = 0;
+        // nextElementSibling, matching promoteAhead - nextSibling also walks text
+        // nodes, which is just wasted iterations between panels.
         while (node && done < count) {
-            node = node.nextSibling;
-            if (node && node.tagName === 'IMG') { promote(node); done++; }
+            node = node.nextElementSibling;
+            if (!node) break;
+            if (node.tagName === 'IMG') { promote(node); done++; }
         }
     }
 
@@ -524,10 +544,11 @@
         setupContinuousScroll();
         preconnectImageHost();
         observeImages();
+        startAppendWatchdog();
         window.addEventListener('scroll', onScroll, { passive: true });
-        window.addEventListener('load', function () { observeImages(); });
-        setTimeout(function () { observeImages(); }, 500);
-        setTimeout(function () { observeImages(); }, 1500);
+        window.addEventListener('load', function () { observeImages(); maybeAppend(); });
+        setTimeout(function () { observeImages(); maybeAppend(); }, 500);
+        setTimeout(function () { observeImages(); maybeAppend(); }, 1500);
     }
 
     // Panels the site itself streams into the current chapter.
