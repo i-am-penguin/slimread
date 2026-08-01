@@ -30,7 +30,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.12 b7 01 Aug 18:18';
+    var TWEAKS_VERSION = '1.13 b8 01 Aug 18:25';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -102,7 +102,6 @@
     var EAGER_FIRST = 4;      // panels loaded instantly on open, before any scroll
 
     var inflight = 0;
-    var loadCursor = 0;
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
@@ -145,15 +144,33 @@
         var real = lazyURL(img);
         if (!real) return false;          // nothing lazy about it; leave it alone
 
+        // Already carrying this exact URL and decoded: assigning it again fires no
+        // load event, so taking a slot for it would leak one permanently.
+        if (img.getAttribute('src') === real && img.complete && img.naturalWidth > 1) {
+            return false;
+        }
+
         inflight++;
+
+        var settled = false;
+        var timer = null;
         var settle = function () {
+            if (settled) return;          // load AND error can both arrive
+            settled = true;
             inflight--;
+            if (timer) clearTimeout(timer);
             img.removeEventListener('load', settle);
             img.removeEventListener('error', settle);
-            pumpImages();                 // a slot freed up - keep the pipe full
+            queuePump();                  // a slot freed up - keep the pipe full
         };
+
         img.addEventListener('load', settle);
         img.addEventListener('error', settle);
+
+        // Backstop. A slot that never settles stalls every later panel, which is
+        // exactly how loading died mid-chapter: enough stuck slots and the pump
+        // could never start anything again.
+        timer = setTimeout(settle, 20000);
 
         img.loading = 'eager';
         img.decoding = 'async';
@@ -161,7 +178,11 @@
         // still wants to fetch.
         try { img.fetchPriority = 'high'; } catch (e) {}
         img.setAttribute('fetchpriority', 'high');
-        img.setAttribute('src', real);
+
+        if (img.getAttribute('src') !== real) img.setAttribute('src', real);
+
+        // A cached image can finish before the listener is ever called.
+        if (img.complete && img.naturalWidth > 1) settle();
         return true;
     }
 
@@ -176,11 +197,16 @@
         var imgs = panelNodes();
         var limitY = window.scrollY + window.innerHeight * (1 + LOOKAHEAD);
 
-        while (loadCursor < imgs.length && inflight < MAX_CONCURRENT) {
-            var img = imgs[loadCursor];
+        // No saved index. A forward-only cursor into a LIVE collection skips panels
+        // for good the moment the site inserts or removes a node, which is the other
+        // half of why loading stopped part-way through a chapter. Scanning is cheap
+        // because finished panels cost one property read and never a layout query.
+        for (var i = 0; i < imgs.length && inflight < MAX_CONCURRENT; i++) {
+            var img = imgs[i];
+            if (img.__slimreadDone) continue;
+
             var top = img.getBoundingClientRect().top + window.scrollY;
-            if (top > limitY) break;      // far enough ahead - stop, keep the cursor
-            loadCursor++;
+            if (top > limitY) break;      // in document order, so everything after is further
             startLoad(img);
         }
     }
@@ -189,7 +215,6 @@
         var imgs = panelNodes();
         var n = Math.min(imgs.length, EAGER_FIRST);
         for (var i = 0; i < n; i++) startLoad(imgs[i]);
-        if (loadCursor < n) loadCursor = n;
     }
 
     /* --- 2. Continuous chapter scroll ------------------------------------ */
