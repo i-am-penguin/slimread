@@ -35,7 +35,7 @@
        again until this string changes. Set SHOW_BADGE to false to silence it.
        --------------------------------------------------------------------- */
 
-    var TWEAKS_VERSION = '1.08 b3 01 Aug 03:52';
+    var TWEAKS_VERSION = '1.09 b4 01 Aug 04:06';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -302,7 +302,9 @@
             var sitsAtTop = rect.top < 12 && rect.bottom < viewportH * 0.45;
 
             if (sitsAtBottom) {
-                el.classList.add('slimread-fixed-bottom', 'slimread-autohide');
+                // Starts hidden. It is the only site chrome worth keeping - Prev/Next
+                // live here - so it is tap-toggled rather than removed.
+                el.classList.add('slimread-fixed-bottom', 'slimread-autohide', 'slimread-hidden');
                 found.push(el);
             } else if (sitsAtTop) {
                 el.classList.add('slimread-fixed-top');
@@ -312,33 +314,76 @@
     }
 
     var bars = [];
-    var lastY = window.scrollY;
+    var barsShown = false;
 
-    function updateBars() {
-        if (!bars.length) return;
-
-        var y = window.scrollY;
-        var goingDown = y > lastY + 4;
-        var goingUp = y < lastY - 4;
-        var atEnd = (window.innerHeight + y) >= (document.body.scrollHeight - 220);
-
-        if (atEnd || goingUp) {
-            for (var i = 0; i < bars.length; i++) bars[i].classList.remove('slimread-hidden');
-        } else if (goingDown) {
-            for (var j = 0; j < bars.length; j++) bars[j].classList.add('slimread-hidden');
+    function setBars(show) {
+        barsShown = show;
+        for (var i = 0; i < bars.length; i++) {
+            bars[i].classList.toggle('slimread-hidden', !show);
         }
-
-        if (goingDown || goingUp) lastY = y;
     }
 
-    /* --- Wiring ---------------------------------------------------------- */
+    // Scroll direction used to drive this, which is why hiding it took a pinch and an
+    // unpinch to provoke. A tap is explicit and always available.
+    var tapBound = false;
+
+    function bindBarTap() {
+        if (tapBound) return;
+        tapBound = true;
+
+        document.addEventListener('click', function (e) {
+            if (!isReaderPage() || !bars.length) return;
+
+            // Never swallow a real control: links, buttons, form fields, and the bar
+            // itself all keep working normally.
+            var t = e.target;
+            if (t && t.closest && t.closest('a, button, input, textarea, select, ' +
+                '[role="button"], .slimread-fixed-bottom')) return;
+
+            // The app's own control bar owns the top strip of the screen.
+            if (typeof e.clientY === 'number' && e.clientY < 70) return;
+
+            setBars(!barsShown);
+        }, false);
+    }
+
+    // Reaching the end of a chapter always reveals it, so Next is never a hunt.
+    function revealAtChapterEnd() {
+        if (!bars.length || barsShown) return;
+        var y = window.scrollY;
+        if ((window.innerHeight + y) >= (document.body.scrollHeight - 220)) setBars(true);
+    }
+
+    /* --- Wiring ----------------------------------------------------------
+
+       Everything expensive is reader-only, and that is the whole performance
+       story. Listing pages carry ~170 images; forcing them all to load eagerly
+       fired 170 requests at once, saturated the connection and blocked the main
+       thread long enough that taps did nothing. The site's own lazy loading is
+       already correct there - it is only inside a chapter that eager loading
+       helps, because you are certain to scroll through every panel.
+       --------------------------------------------------------------------- */
 
     function sweep() {
-        markReader();
+        var reader = markReader();
+
+        if (!reader) {
+            // Nothing to do. No eager loading, no bar tagging, no corner arcs, and
+            // deliberately no viewport-fit=cover: without it WebKit lays the page out
+            // inside the safe area by itself, so content cannot land under the Dynamic
+            // Island or in a rounded corner. That is free, exact, and needs no padding.
+            return;
+        }
+
         coverViewport();
         installCorners();
         promoteAll();
+
         bars = tagFixedBars();
+        if (bars.length) {
+            bindBarTap();
+            setBars(barsShown);
+        }
     }
 
     var scrollQueued = false;
@@ -347,7 +392,7 @@
         scrollQueued = true;
         window.requestAnimationFrame(function () {
             scrollQueued = false;
-            updateBars();
+            revealAtChapterEnd();
             prefetchAhead();
         });
     }
@@ -374,7 +419,10 @@
             lastPath = location.pathname;
             prefetchCursor = 0;
             markReader();
-            window.requestAnimationFrame(sweep);
+            window.requestAnimationFrame(function () {
+                sweep();
+                syncObserver();
+            });
         }
 
         ['pushState', 'replaceState'].forEach(function (name) {
@@ -389,23 +437,40 @@
         window.addEventListener('popstate', check);
     }
 
-    function start() {
-        sweep();
-        showVersionBadge();
+    // Observing the whole document is only worth its cost inside a chapter. On a
+    // listing page it fired on every card the site rendered, for no benefit.
+    var observer = null;
 
-        window.addEventListener('scroll', onScroll, { passive: true });
-        new MutationObserver(queuePromote).observe(root, { childList: true, subtree: true });
-        watchRouteChanges();
-
-        setTimeout(sweep, 600);
-        setTimeout(sweep, 2000);
-        window.addEventListener('load', sweep);
+    function syncObserver() {
+        var reader = isReaderPage();
+        if (reader && !observer) {
+            observer = new MutationObserver(queuePromote);
+            observer.observe(root, { childList: true, subtree: true });
+        } else if (!reader && observer) {
+            observer.disconnect();
+            observer = null;
+        }
     }
 
-    // Runs at document start, so the reader class lands before first paint and
-    // the page never flashes with the wrong layout rules.
+    function start() {
+        sweep();
+        syncObserver();
+        showVersionBadge();
+
+        watchRouteChanges();
+
+        if (isReaderPage()) {
+            window.addEventListener('scroll', onScroll, { passive: true });
+            setTimeout(sweep, 600);
+            setTimeout(sweep, 2000);
+            window.addEventListener('load', sweep);
+        }
+    }
+
+    // Runs at document start, so the reader class lands before first paint and the
+    // page never flashes with the wrong layout rules. coverViewport is deliberately
+    // NOT called here - only sweep() calls it, and only for the reader.
     markReader();
-    coverViewport();
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', start, { once: true });

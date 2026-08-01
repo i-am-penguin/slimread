@@ -134,8 +134,11 @@ try {
     # The version has to be known before the commit, or the stamp baked into
     # tweaks.js would name the previous release rather than the one going out.
 
-    $current = (& gh release view --json tagName --jq '.tagName' 2>$null | Select-Object -First 1)
-    if ($current) { $current = $current.Trim() }
+    $current = ''
+    $rawRelease = (& gh release view --json tagName) -join ''
+    if ($rawRelease) {
+        try { $current = [string]($rawRelease | ConvertFrom-Json).tagName } catch { }
+    }
 
     Write-Host ''
     Say 'Changes to tweaks/ go live on their own - every installed copy picks them'
@@ -258,9 +261,17 @@ try {
     # Grabbing "the latest run" after a fixed sleep picks up the PREVIOUS release
     # whenever GitHub has not registered the new one yet - and that one already says
     # success, so the script would sail past a build that never happened.
+    # No --jq anywhere in this script's polling. PowerShell 5.1 re-quotes arguments
+    # when it hands them to a native exe, and a jq expression containing spaces and
+    # double quotes arrives at gh mangled - it then returns nothing, which reads as
+    # "status unknown" forever. ConvertFrom-Json has no such problem.
     function Latest-RunId {
-        $id = (& gh run list --workflow release-ipa.yml --limit 1 --json databaseId --jq '.[0].databaseId' 2>$null)
-        if ($id) { return $id.Trim() }
+        $raw = (& gh run list --workflow release-ipa.yml --limit 1 --json databaseId) -join ''
+        if (-not $raw) { return '' }
+        try {
+            $runs = $raw | ConvertFrom-Json
+            if ($runs -and $runs.Count -gt 0) { return [string]$runs[0].databaseId }
+        } catch { }
         return ''
     }
 
@@ -303,12 +314,29 @@ try {
     $conclusion = ''
     $tick = 0
 
+    $unreadable = 0
+
     while ($true) {
-        $raw = (& gh run view $runId --json status,conclusion --jq '.status + "|" + (.conclusion // "")' 2>$null)
+        $raw = (& gh run view $runId --json status,conclusion) -join ''
+        $ok = $false
         if ($raw) {
-            $parts = $raw.Trim() -split '\|'
-            $status = $parts[0]
-            if ($parts.Count -gt 1) { $conclusion = $parts[1] }
+            try {
+                $info = $raw | ConvertFrom-Json
+                if ($info.status) { $status = [string]$info.status; $ok = $true }
+                $conclusion = [string]$info.conclusion
+            } catch { }
+        }
+
+        # Never spin silently on a status that cannot be read.
+        if ($ok) { $unreadable = 0 } else { $unreadable++ }
+        if ($unreadable -ge 8) {
+            Write-Host ''
+            Stop-With 'Cannot read the build status' @(
+                'gh returned nothing usable for 8 tries running.',
+                "The build itself is probably fine - watch it here:",
+                "  https://github.com/$Owner/$Repo/actions/runs/$runId",
+                "Then download the IPA from the release page for v$version."
+            )
         }
 
         $label = switch ($status) {

@@ -40,6 +40,11 @@
 	<key>UIRequiresFullScreen</key>
 	<true/>
 
+	<!-- ProMotion. Without this iOS caps the app - including WKWebView scrolling
+	     and every UIView animation - at 60fps on 120Hz hardware. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+
 	<key>UILaunchScreen</key>
 	<dict/>
 

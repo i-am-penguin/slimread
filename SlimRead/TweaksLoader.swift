@@ -108,8 +108,14 @@ enum TweaksLoader {
     // as soon as the app can reach GitHub.
 
     enum Fallback {
+        /// Deliberately does NOT force a black background.
+        ///
+        /// It used to, and that is the cover-thumbnail bug in miniature: sites with a
+        /// light background and transparent cards turn every bit of grid spacing into a
+        /// thick black border. Black belongs to the reader, and the reader is only
+        /// identifiable from tweaks.js - which this fallback stands in for. So the safe
+        /// thing to do with no network is almost nothing.
         static let css = """
-        html, body { background: #000 !important; }
         img { max-width: 100% !important; height: auto !important; }
         """
 

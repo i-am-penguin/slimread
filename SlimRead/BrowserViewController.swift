@@ -143,7 +143,10 @@ final class BrowserViewController: UIViewController {
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.backgroundColor = .black
-        webView.isOpaque = false
+        // Opaque: a transparent web view forces the compositor to blend every frame
+        // against what is behind it. Nothing ever is - the view controller's own
+        // background is the same black.
+        webView.isOpaque = true
         webView.scrollView.backgroundColor = .black
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.showsVerticalScrollIndicator = false
@@ -510,6 +513,17 @@ extension BrowserViewController: WKNavigationDelegate {
         }
 
         decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        // Re-assert the newest stylesheet on every navigation.
+        //
+        // User scripts are registered once at launch from whatever was stored then. If
+        // a refresh lands mid-load, or the live swap fires before the document exists,
+        // the page keeps serving the previous stylesheet - which is the "it went back
+        // to the old version" symptom. Re-applying here costs nothing and removes the
+        // timing question entirely.
+        webView.evaluateJavaScript(TweaksLoader.cssInstallScript(TweaksLoader.cached.css))
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

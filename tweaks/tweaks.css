@@ -54,13 +54,18 @@ html, body {
     --slimread-corner: 0px;
 }
 
-/* Listing pages: hold content inside the safe rect, which is also clear of the
-   corner arcs. The reader is left alone - artwork is meant to bleed. */
-html:not(.slimread-reader) body {
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    box-sizing: border-box !important;
-}
+/*
+   Listing pages get NO padding here, on purpose.
+
+   Padding the body was the top-bar bug: it pushed the whole page down by the
+   safe-area inset while the site's own sticky header - which tweaks.js had also
+   tagged and padded - moved down again, leaving the hero banner showing through
+   the gap. Two insets for one notch.
+
+   Instead tweaks.js simply withholds viewport-fit=cover outside the reader, and
+   WebKit lays the page out inside the safe area on its own. Exact, no padding,
+   nothing to double up.
+*/
 
 .slimread-corner {
     position: fixed !important;
@@ -126,19 +131,24 @@ img {
    out of the corner curve - the insets themselves are zero in portrait.
 */
 
-.slimread-fixed-top,
+/* The site's own top bar holds nothing you need mid-chapter and it covers the
+   artwork. Inside the reader it goes entirely - no tapping it away each time. */
+.slimread-reader .slimread-fixed-top {
+    display: none !important;
+}
+
+/* The bottom bar is the opposite - Prev/Next live there. It stays, hidden by
+   default, and a single tap on the artwork toggles it. */
 .slimread-fixed-bottom {
     box-sizing: border-box !important;
     padding-left: max(env(safe-area-inset-left, 0px), 16px) !important;
     padding-right: max(env(safe-area-inset-right, 0px), 16px) !important;
-}
 
-.slimread-fixed-top {
-    padding-top: env(safe-area-inset-top, 0px) !important;
-}
-
-.slimread-fixed-bottom {
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
+    /* Just enough to lift Prev/Next clear of the home indicator.
+       The full safe-area inset is 34px, and adding all of it grew the bar into a
+       thick empty black band under the controls. Roughly half clears the indicator
+       without the void. */
+    padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) * 0.5), 10px) !important;
 }
 
 /* --- Version badge -------------------------------------------------------
