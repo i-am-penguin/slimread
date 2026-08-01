@@ -12,6 +12,7 @@ final class ControlBarView: UIView {
     var onHome: (() -> Void)?
     var onToggleFullBleed: (() -> Void)?
     var onGuide: (() -> Void)?
+    var onNextChapter: (() -> Void)?
     var onSubmit: ((String) -> Void)?
     var onInteraction: (() -> Void)?
     var onToggle: (() -> Void)?
@@ -25,6 +26,10 @@ final class ControlBarView: UIView {
     private let homeButton = ControlBarView.makeButton("house")
     private let fullBleedButton = ControlBarView.makeButton("arrow.up.left.and.arrow.down.right")
     private let guideButton = ControlBarView.makeButton("questionmark.circle")
+
+    /// Manual next-chapter, for when the continuous scroll has not stitched the
+    /// next one on yet - or cannot.
+    private let nextChapterButton = ControlBarView.makeButton("forward.end")
 
     /// The empty strip above the controls - the notch / Dynamic Island area, once the
     /// bar is open. Tapping it closes the bar again.
@@ -93,7 +98,8 @@ final class ControlBarView: UIView {
         // Row 1: address field on its own line, so it stays wide on narrow phones.
         // Row 2: the buttons, evenly spread.
         let buttons = UIStackView(arrangedSubviews: [
-            backButton, forwardButton, reloadButton, homeButton, fullBleedButton, guideButton
+            backButton, forwardButton, reloadButton, homeButton,
+            fullBleedButton, nextChapterButton, guideButton
         ])
         buttons.axis = .horizontal
         buttons.distribution = .equalSpacing
@@ -138,6 +144,7 @@ final class ControlBarView: UIView {
         homeButton.addTarget(self, action: #selector(tapHome), for: .touchUpInside)
         fullBleedButton.addTarget(self, action: #selector(tapFullBleed), for: .touchUpInside)
         guideButton.addTarget(self, action: #selector(tapGuide), for: .touchUpInside)
+        nextChapterButton.addTarget(self, action: #selector(tapNextChapter), for: .touchUpInside)
     }
 
     // MARK: - Sizing
@@ -177,6 +184,7 @@ final class ControlBarView: UIView {
     @objc private func tapHome() { onInteraction?(); onHome?() }
     @objc private func tapFullBleed() { onInteraction?(); onToggleFullBleed?() }
     @objc private func tapGuide() { onInteraction?(); onGuide?() }
+    @objc private func tapNextChapter() { onInteraction?(); onNextChapter?() }
     @objc private func tapHeader() { onToggle?() }
 
     // MARK: - Helpers

@@ -241,6 +241,14 @@ final class BrowserViewController: UIViewController {
             self?.setControls(visible: false)
             self?.showGuide()
         }
+        // The page knows the chapter order - see __slimreadNextChapter in tweaks.js.
+        // Falls back to the site's own Next button if the reader is not active.
+        controls.onNextChapter = { [weak self] in
+            self?.setControls(visible: false)
+            self?.webView.evaluateJavaScript(
+                "(window.__slimreadNextChapter && window.__slimreadNextChapter()), 0"
+            )
+        }
         controls.onSubmit = { [weak self] text in
             guard let self, let url = Self.resolve(text) else { return }
             self.load(url)

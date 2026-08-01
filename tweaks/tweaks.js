@@ -9,9 +9,11 @@
    site's own grid.
 
    Reader jobs:
-     1. Load panels ahead of where you are, with a real concurrency limit.
-     2. Continuous chapter scroll: reaching the end appends the next chapter;
-        pulling down at the very top goes back to the previous one.
+     1. Load panels well ahead of where you are, and prime the first few of every
+        chapter so one never opens on blank panels.
+     2. Continuous chapter scroll: reaching the end appends the next chapter, and
+        each chapter reached pushes a history entry so Back steps through them.
+        There is no scroll-up gesture - it fired on any brisk flick to the top.
      3. Strip the site's chrome inside a chapter - top bar, bottom toolbar,
         comments, recommendations - so only the artwork remains.
 
@@ -32,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.16 b11 01 Aug 18:50';
+    var TWEAKS_VERSION = '1.17 b12 01 Aug 22:33';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -111,6 +113,10 @@
     // Turn it down if it ever feels heavy on cellular; turn it up if a black gap
     // comes back. Nothing else needs to change.
     var LOAD_MARGIN = '800% 0px 800% 0px';
+
+    // Panels loaded the instant a chapter is entered, without waiting for the
+    // observer. Covers the first few screens so a new chapter opens already drawn.
+    var PRIME_COUNT = 6;
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
@@ -257,9 +263,6 @@
         });
     }
 
-    function prevIdBefore(id) {
-        return ensureIndexOf(id).then(function (i) { return i > 0 ? IS.order[i - 1] : null; });
-    }
 
     function extractPanels(html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -329,27 +332,62 @@
 
                     IS.appending = false;
                     observeImages(IS.article);   // hand the new panels to the observer
+
+                    // Draw the start of the new chapter straight away, so arriving
+                    // at it never lands on blank panels.
+                    primeFrom(anchor, PRIME_COUNT);
                 });
         }).catch(function () { IS.appending = false; });
     }
 
     /* Keep the URL and title in step with whichever chapter is under the top of
-       the screen. Measured on scroll rather than observed - a zero-height anchor
-       plus a top-edge condition is exactly the case IntersectionObserver does
-       not report. */
-    function updateChapterURL() {
-        if (!IS.blocks.length) return;
+       the screen.
+
+       The first time a chapter is reached this PUSHES a history entry, so the
+       app's back button steps back through chapters like real pages. Coming back
+       to a chapter you have already been through only replaces, or scrolling up
+       and down over one boundary would stack duplicate entries.
+
+       Back does not reload: popstate scrolls to that chapter's anchor, so the
+       continuously-scrolled content stays exactly as it is. */
+    var pushedIds = {};
+
+    function chapterUnderTop() {
         var current = null;
         for (var i = 0; i < IS.blocks.length; i++) {
             if (IS.blocks[i].anchor.getBoundingClientRect().top <= 1) current = IS.blocks[i];
             else break;
         }
+        return current;
+    }
+
+    function updateChapterURL() {
+        if (!IS.blocks.length) return;
+        var current = chapterUnderTop();
         var id = current ? current.id : IS.headId;
         var title = current ? current.title : null;
-        if (id && ('/episode/' + id) !== location.pathname) {
-            try { history.replaceState(null, '', '/episode/' + id); } catch (e) {}
-            if (title) document.title = title;
+        if (!id || ('/episode/' + id) === location.pathname) return;
+
+        try {
+            if (pushedIds[id]) history.replaceState({ slimread: id }, '', '/episode/' + id);
+            else history.pushState({ slimread: id }, '', '/episode/' + id);
+        } catch (e) { return; }
+
+        pushedIds[id] = true;
+        if (title) document.title = title;
+    }
+
+    /* Back / forward within the stitched chapters: scroll rather than navigate. */
+    function scrollToEpisode(id) {
+        if (!id) return false;
+        if (id === IS.headId) { window.scrollTo(0, 0); return true; }
+        for (var i = 0; i < IS.blocks.length; i++) {
+            if (IS.blocks[i].id !== id) continue;
+            var y = IS.blocks[i].anchor.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo(0, y);
+            return true;
         }
+        return false;
     }
 
     function maybeAppend() {
@@ -359,59 +397,38 @@
         if (remaining < window.innerHeight * 2.5) appendNextChapter();
     }
 
-    /* Previous chapter. Prepending would fight the scroll position, so this is a
-       real navigation - and it lands at the BOTTOM of that chapter, which is
-       where you were reading from. */
-    var LAND_KEY = 'slimread.landAtBottom';
-    var prevBusy = false;
+    /* There is deliberately no scroll-up-for-previous-chapter gesture.
+       It fired on any brisk upward flick that reached the top, yanking you out of
+       the chapter you were reading. Going back is the app's back button now, which
+       is unambiguous and cannot trigger itself. */
 
-    function goPrev() {
-        if (prevBusy || !IS.active) return;
-        prevBusy = true;
-        prevIdBefore(IS.headId).then(function (pid) {
-            if (!pid) { prevBusy = false; return; }
-            try { sessionStorage.setItem(LAND_KEY, pid); } catch (e) {}
-            location.href = '/episode/' + pid;
-        }).catch(function () { prevBusy = false; });
-    }
-
-    function applyLandAtBottom() {
-        var want;
-        try { want = sessionStorage.getItem(LAND_KEY); } catch (e) { return; }
-        if (!want || want !== currentEpisodeId()) return;
-        try { sessionStorage.removeItem(LAND_KEY); } catch (e) {}
-
-        // Panels reserve their height, so the page is already the right length;
-        // settle it over a few frames as the last panels decode.
+    /* Called by the app's next-chapter button - the manual fallback for when the
+       automatic append has not happened yet. */
+    window.__slimreadNextChapter = function () {
+        if (!IS.active) {
+            var btn = document.querySelector('.js-next-ep-btn:not(.disabled)');
+            if (btn) btn.click();
+            return;
+        }
+        // Already stitched on? Just go there.
+        var last = IS.blocks.length ? IS.blocks[IS.blocks.length - 1] : null;
+        var atLast = last && last.anchor.getBoundingClientRect().top <= 1;
+        if (last && !atLast) {
+            window.scrollTo(0, last.anchor.getBoundingClientRect().top + window.scrollY);
+            return;
+        }
+        appendNextChapter();
+        // Give the fetch a moment, then jump to whatever landed.
         var tries = 0;
-        (function settle() {
-            window.scrollTo(0, document.documentElement.scrollHeight);
-            if (tries++ < 12) setTimeout(settle, 120);
+        (function waitForIt() {
+            var b = IS.blocks.length ? IS.blocks[IS.blocks.length - 1] : null;
+            if (b && (!last || b.id !== last.id)) {
+                window.scrollTo(0, b.anchor.getBoundingClientRect().top + window.scrollY);
+                return;
+            }
+            if (tries++ < 40) setTimeout(waitForIt, 150);
         })();
-    }
-
-    var pullStartY = 0, pullFromTop = false;
-    function bindPrevGesture() {
-        document.addEventListener('touchstart', function (e) {
-            pullStartY = e.touches[0].clientY;
-            pullFromTop = window.scrollY <= 0;
-        }, { passive: true });
-
-        document.addEventListener('touchmove', function (e) {
-            if (prevBusy || !pullFromTop) return;
-            if (window.scrollY > 0) { pullFromTop = false; return; }
-            if ((e.touches[0].clientY - pullStartY) > 130) goPrev();
-        }, { passive: true });
-
-        var wheelUp = 0;
-        window.addEventListener('wheel', function (e) {
-            if (prevBusy) return;
-            if (window.scrollY <= 0 && e.deltaY < 0) {
-                wheelUp += -e.deltaY;
-                if (wheelUp > 260) goPrev();
-            } else wheelUp = 0;
-        }, { passive: true });
-    }
+    };
 
     function setupContinuousScroll() {
         IS.seriesId = seriesIdFromDom();
@@ -429,8 +446,27 @@
         IS.active = true;
         IS.tailId = cur;
         IS.headId = cur;
-        bindPrevGesture();
-        applyLandAtBottom();
+        primeChapter(IS.article);
+    }
+
+    /* Entering a chapter, load its opening panels immediately rather than waiting
+       for the observer to notice them. The observer still handles everything
+       after that; this only removes the wait at the start of each chapter. */
+    function primeChapter(scope) {
+        if (!scope) return;
+        var imgs = scope.getElementsByTagName('img');
+        var n = Math.min(imgs.length, PRIME_COUNT);
+        for (var i = 0; i < n; i++) promote(imgs[i]);
+    }
+
+    /* Same idea for an appended chapter: walk forward from its anchor and load the
+       first few panels of that chapter only. */
+    function primeFrom(anchor, count) {
+        var node = anchor, done = 0;
+        while (node && done < count) {
+            node = node.nextSibling;
+            if (node && node.tagName === 'IMG') { promote(node); done++; }
+        }
     }
 
     /* --- Wiring ---------------------------------------------------------- */
@@ -490,7 +526,17 @@
             if (typeof orig !== 'function') return;
             history[name] = function () { var r = orig.apply(this, arguments); check(); return r; };
         });
-        window.addEventListener('popstate', check);
+
+        window.addEventListener('popstate', function (e) {
+            // Back/forward between chapters we stitched together: scroll to it
+            // instead of letting the browser reload and lose the stitched page.
+            var id = (e.state && e.state.slimread) || currentEpisodeId();
+            if (IS.active && scrollToEpisode(id)) {
+                lastPath = location.pathname;
+                return;
+            }
+            check();
+        });
     }
 
     function boot() {

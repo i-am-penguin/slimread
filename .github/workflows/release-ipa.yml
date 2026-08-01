@@ -31,7 +31,14 @@ jobs:
           prev=$(git describe --tags --abbrev=0 --exclude "v${{ inputs.version }}" 2>/dev/null || true)
           {
             echo 'notes<<CHANGELOG_EOF'
-            if [ -n "$prev" ]; then
+
+            # Prefer the hand-written section in CHANGELOG.md - it says what the
+            # version actually does. Commit subjects are the fallback.
+            section=$(awk '/^## v'"${{ inputs.version }}"'/{flag=1; next} /^## /{if(flag) exit} flag' CHANGELOG.md 2>/dev/null || true)
+            if [ -n "$(echo "$section" | tr -d '[:space:]')" ]; then
+              echo "### What changed"
+              echo "$section"
+            elif [ -n "$prev" ]; then
               echo "### Changes since $prev"
               echo ""
               git log --no-merges --pretty='- %s' "$prev"..HEAD
@@ -40,6 +47,7 @@ jobs:
               echo ""
               git log --no-merges --pretty='- %s' -n 20
             fi
+
             echo ""
             echo "Build ${{ github.run_number }} of ${{ github.sha }}"
             echo CHANGELOG_EOF

@@ -19,6 +19,18 @@ html, body {
     overflow-x: hidden !important;
 }
 
+/* Any scrollbar the page itself draws. The translucent bar on the right edge is
+   the native iOS one, disabled in the app - this only covers a page-drawn one. */
+::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}
+
+* {
+    scrollbar-width: none !important;
+}
+
 img {
     max-width: 100% !important;
 }

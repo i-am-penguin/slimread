@@ -101,6 +101,46 @@ function Set-TweaksStamp {
 # Builds the commit message from what is actually staged, so publishing never stops to
 # ask. Typing one every time meant taking the default, and a history of identical
 # "SlimRead update" lines is no history at all.
+# Reads the bullet points under the top heading of CHANGELOG.md. That file is the
+# single place describing what a version actually does - "Release v1.15 - tweaks
+# (1 file)" tells nobody anything six versions later.
+function Get-ChangelogEntries {
+    $path = Join-Path $ProjectDir 'CHANGELOG.md'
+    if (-not (Test-Path $path)) { return @() }
+
+    $lines = Get-Content $path
+    $inSection = $false
+    $entries = @()
+    foreach ($line in $lines) {
+        if ($line -match '^##\s+') {
+            if ($inSection) { break }      # reached the next section
+            $inSection = $true
+            continue
+        }
+        if (-not $inSection) { continue }
+        if ($line -match '^\s*-\s+(.*)$') { $entries += $Matches[1].Trim() }
+        elseif ($line -match '^\s{2,}\S' -and $entries.Count) {
+            # continuation of the previous bullet
+            $entries[-1] = ($entries[-1] + ' ' + $line.Trim())
+        }
+    }
+    return $entries
+}
+
+# Stamps the top heading with the version just published, so the next run starts a
+# fresh Unreleased section instead of re-reporting old notes.
+function Close-ChangelogSection {
+    param([string]$Version)
+
+    $path = Join-Path $ProjectDir 'CHANGELOG.md'
+    if (-not (Test-Path $path)) { return }
+
+    $text = Get-Content $path -Raw
+    $stamped = "## v$Version - " + (Get-Date -Format 'yyyy-MM-dd')
+    $text = [regex]::Replace($text, '(?m)^##\s+Unreleased\s*$', "## Unreleased`r`n`r`n$stamped", 1)
+    [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 function New-CommitMessage {
     param([string]$Version, [string]$Stamp)
 
@@ -108,6 +148,18 @@ function New-CommitMessage {
     $when = Get-Date -Format 'dd MMM HH:mm'
 
     if (-not $files.Count) { return "No file changes - $when" }
+
+    # Prefer a real description of the change over a file inventory.
+    $notes = Get-ChangelogEntries
+    if ($notes.Count) {
+        # First sentence of the first bullet, clipped to a sane subject length.
+        $subject = ($notes[0] -split '(?<=\.)\s' | Select-Object -First 1).TrimEnd('.')
+        if ($subject.Length -gt 62) { $subject = $subject.Substring(0, 59).TrimEnd() + '...' }
+
+        $head = if ($Version) { "v${Version}: " } else { '' }
+        if ($notes.Count -gt 1) { return "$head$subject (+$($notes.Count - 1) more)" }
+        return "$head$subject"
+    }
 
     $areas = @()
     if ($files -like 'tweaks/*')                                 { $areas += 'tweaks' }
@@ -191,6 +243,18 @@ try {
 
     $stamp = Set-TweaksStamp -AppVersion $stampVersion
     if ($stamp) { Say "badge stamped:  $stamp" Green }
+
+    # Roll CHANGELOG.md's Unreleased section over to this version before committing,
+    # so the notes ship inside the same commit they describe.
+    $notes = Get-ChangelogEntries
+    if ($notes.Count) {
+        Write-Host ''
+        Say "release notes ($($notes.Count)):" Cyan
+        foreach ($n in $notes) { Say "  - $n" }
+        if ($version) { Close-ChangelogSection -Version $version }
+    } else {
+        Say 'CHANGELOG.md has no entries under the top heading - notes will be generic' Yellow
+    }
 
     Step 'Pushing your changes'
 
