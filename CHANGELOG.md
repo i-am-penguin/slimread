@@ -8,6 +8,17 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.25 - 2026-08-04
+- Apply a changed tweaks.js without waiting for a navigation. User scripts are
+  registered when the web view is created, from the previously stored copy, and
+  WKWebView only applies a newly registered one at the next page load - so the
+  page in front of you kept running the old script. Re-registering it was not
+  enough; the page is now reloaded when the script actually changed. CSS was
+  never affected, which is why layout changes appeared and behaviour changes did
+  not.
+- The refresh now reports which of the two files changed, so a CSS-only edit
+  still swaps in silently with no reload.
+
 ## v1.23 - 2026-08-04
 - Fix the reader stalling for good at the end of a chapter. Fetching the next one
   set an "appending" flag and had no timeout, so a request that never settled -

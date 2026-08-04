@@ -391,29 +391,38 @@ final class BrowserViewController: UIViewController {
     // MARK: - Tweaks
 
     private func refreshTweaks() {
-        TweaksLoader.refresh { [weak self] updated in
-            guard let self, let updated else { return }
+        TweaksLoader.refresh { [weak self] update in
+            guard let self, let update else { return }
+            let tweaks = update.tweaks
 
-            // The stylesheet genuinely swaps live. The script does not - it guards on
-            // window.__slimread and the current page has already run a copy - so
-            // re-registering below is what actually puts a new tweaks.js into effect,
-            // from the next page load onward.
-            self.webView.evaluateJavaScript(TweaksLoader.cssInstallScript(updated.css))
+            // A stylesheet can be swapped into the page that is already open.
+            self.webView.evaluateJavaScript(TweaksLoader.cssInstallScript(tweaks.css))
 
             let controller = self.webView.configuration.userContentController
             controller.removeAllUserScripts()
             controller.addUserScript(WKUserScript(
-                source: TweaksLoader.cssInstallScript(updated.css),
+                source: TweaksLoader.cssInstallScript(tweaks.css),
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: false
             ))
-            if !updated.js.isEmpty {
+            if !tweaks.js.isEmpty {
                 controller.addUserScript(WKUserScript(
-                    source: updated.js,
+                    source: tweaks.js,
                     injectionTime: .atDocumentStart,
                     forMainFrameOnly: true
                 ))
             }
+
+            // A user script cannot be swapped into a live page - WKWebView only
+            // applies it at the next page load. Registering it and stopping there
+            // meant the page in front of you kept running the previous tweaks.js
+            // until you happened to navigate, so "push and reopen" did not actually
+            // deliver a JS change. Reload so it takes effect now.
+            //
+            // Safe to reload: the reader records its position, so it comes back to
+            // the same place, and this only fires when the file really changed.
+            guard update.jsChanged else { return }
+            self.webView.reload()
         }
     }
 

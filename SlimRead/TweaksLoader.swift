@@ -35,14 +35,29 @@ enum TweaksLoader {
         UserDefaults.standard.object(forKey: Key.stamp) as? Date
     }
 
-    /// Pulls both files. Calls back with the new tweaks only if something actually changed,
+    struct Update {
+        var tweaks: Tweaks
+        var cssChanged: Bool
+        /// The caller has to treat this differently: a stylesheet can be swapped into
+        /// a live page, but a user script only takes effect at the next page load.
+        var jsChanged: Bool
+    }
+
+    /// Pulls both files. Calls back only if something actually changed, and says which,
     /// so the caller can avoid a pointless reload.
-    static func refresh(completion: @escaping (Tweaks?) -> Void) {
+    static func refresh(completion: @escaping (Update?) -> Void) {
         var fetchedCSS: String?
         var fetchedJS: String?
         let group = DispatchGroup()
 
         func fetch(_ name: String, into store: @escaping (String) -> Void) {
+            // reloadIgnoringLocalCacheData skips the local store only. The remaining
+            // delay is raw.githubusercontent.com's own edge cache (max-age=300), and
+            // it cannot be defeated from here: a unique query parameter still comes
+            // back X-Cache: HIT with the same Source-Age, because Fastly strips the
+            // query for this origin. So a push can take up to five minutes to become
+            // visible. Not worth working around - the fix that mattered was applying
+            // a changed script without waiting for a navigation.
             guard let url = URL(string: baseURL + name) else { return }
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -65,19 +80,25 @@ enum TweaksLoader {
 
         group.notify(queue: .main) {
             let defaults = UserDefaults.standard
-            var changed = false
+            var cssChanged = false
+            var jsChanged = false
 
             if let fetchedCSS, fetchedCSS != defaults.string(forKey: Key.css) {
                 defaults.set(fetchedCSS, forKey: Key.css)
-                changed = true
+                cssChanged = true
             }
             if let fetchedJS, fetchedJS != defaults.string(forKey: Key.js) {
                 defaults.set(fetchedJS, forKey: Key.js)
-                changed = true
+                jsChanged = true
             }
-            if changed { defaults.set(Date(), forKey: Key.stamp) }
 
-            completion(changed ? cached : nil)
+            guard cssChanged || jsChanged else {
+                completion(nil)
+                return
+            }
+
+            defaults.set(Date(), forKey: Key.stamp)
+            completion(Update(tweaks: cached, cssChanged: cssChanged, jsChanged: jsChanged))
         }
     }
 
