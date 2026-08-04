@@ -8,6 +8,14 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.22 - 2026-08-04
+- Fix the reader advancing chapters on its own. The append watchdog added in 1.20
+  runs on a timer rather than on scroll, and "near the end" was measured from the
+  page height - which is small while panels are still taking up their space. So
+  arriving at a chapter could append the next one immediately, and the next, until
+  the stitch cap navigated onward. Appending now requires a page that has reached
+  a real height and that you have actually scrolled.
+
 ## v1.21 - 2026-08-04
 - Remember the chapter you were reading, reliably. The app was reading the web
   view's URL, but chapters advance through history.pushState from the page, so it

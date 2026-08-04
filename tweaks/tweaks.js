@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.21 b16 04 Aug 16:37';
+    var TWEAKS_VERSION = '1.22 b17 04 Aug 16:45';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -433,9 +433,21 @@
 
     function maybeAppend() {
         if (!IS.active || IS.ended) return;
-        var doc = document.documentElement;
-        var remaining = doc.scrollHeight - (window.scrollY + window.innerHeight);
-        if (remaining < window.innerHeight * 2.5) appendNextChapter();
+
+        var vh = window.innerHeight;
+        var height = document.documentElement.scrollHeight;
+
+        // Two guards against appending a chapter nobody asked for.
+        //
+        // A page that has not reached its real height yet - panels still taking up
+        // their space - trivially looks "near the end", and the watchdog runs on a
+        // timer rather than on scroll. Together that meant arriving at a chapter
+        // could append the next one immediately, then the next, until the stitch
+        // cap navigated onward: the reader advancing chapters on its own.
+        if (height < vh * 3) return;        // too short to be a real chapter yet
+        if (window.scrollY <= 0) return;    // still at the very top - not the end
+
+        if (height - (window.scrollY + vh) < vh * 2.5) appendNextChapter();
     }
 
     /* Safety net for appending.
