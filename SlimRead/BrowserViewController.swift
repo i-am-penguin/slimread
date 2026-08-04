@@ -36,6 +36,10 @@ final class BrowserViewController: UIViewController {
 
     // MARK: - State
 
+    /// Set once the page reports its own chapter, cleared on every new document.
+    /// While set, the native URL-based save stands back - see saveState().
+    private var pageOwnsPosition = false
+
     private var controlsVisible = false
     private var hideWorkItem: DispatchWorkItem?
     private var observations: [NSKeyValueObservation] = []
@@ -180,6 +184,14 @@ final class BrowserViewController: UIViewController {
     private func makeUserContentController() -> WKUserContentController {
         let controller = WKUserContentController()
         let tweaks = TweaksLoader.cached
+
+        // The page reports the chapter it is on directly.
+        //
+        // Reading `webView.url` is not enough: chapters advance through
+        // history.pushState from the page, and relying on that reaching the native
+        // side is what made the reader come back to the chapter you had opened
+        // rather than the one you were reading. A message cannot be missed.
+        controller.add(MessageRelay(self), name: "slimread")
 
         // CSS first, at document start, so the page never flashes un-styled.
         controller.addUserScript(WKUserScript(
@@ -356,6 +368,10 @@ final class BrowserViewController: UIViewController {
                            name: UIResponder.keyboardWillHideNotification, object: nil)
         centre.addObserver(self, selector: #selector(saveState),
                            name: UIApplication.didEnterBackgroundNotification, object: nil)
+        // Earlier than didEnterBackground, and it still fires in some paths that
+        // lead to termination without a background transition.
+        centre.addObserver(self, selector: #selector(saveState),
+                           name: UIApplication.willResignActiveNotification, object: nil)
         centre.addObserver(self, selector: #selector(appBecameActive),
                            name: UIApplication.didBecomeActiveNotification, object: nil)
     }
@@ -430,10 +446,34 @@ final class BrowserViewController: UIViewController {
         return URL(string: string)
     }
 
+    /// Records the chapter currently being read.
+    ///
+    /// Both the app and its web content process can be terminated by iOS under memory
+    /// pressure, and reading far into a series is exactly what builds that pressure.
+    /// A UserDefaults write is normally flushed to disk on the system's own schedule,
+    /// so a termination in the foreground could discard the most recent chapter and
+    /// bring the reader back to an older one. Writing through immediately costs a
+    /// small file write per chapter boundary - not per scroll - and removes that.
     @objc private func saveState() {
-        if let url = webView.url, url.scheme?.hasPrefix("http") == true {
-            UserDefaults.standard.set(url.absoluteString, forKey: Key.lastURL)
-        }
+        // Do not overwrite a position the page reported.
+        //
+        // On a stitched reader page webView.url can lag behind the chapter actually
+        // being read, so writing it here at background time would replace the
+        // correct chapter with the one originally opened - defeating the whole
+        // point. The page reports on pagehide and visibilitychange, so nothing is
+        // lost by standing back.
+        guard !pageOwnsPosition else { return }
+        guard let url = webView.url, url.scheme?.hasPrefix("http") == true else { return }
+        persistPosition(url.absoluteString)
+    }
+
+    /// Writes through immediately rather than leaving it to the system's flush
+    /// schedule - a termination under memory pressure would discard it otherwise.
+    func persistPosition(_ text: String) {
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: Key.lastURL) != text else { return }   // no churn
+        defaults.set(text, forKey: Key.lastURL)
+        defaults.synchronize()
     }
 
     // MARK: - KVO
@@ -497,6 +537,10 @@ extension BrowserViewController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        // New document: the old page's claim on the saved position is void. It
+        // re-asserts within a moment if this one is a reader page too.
+        pageOwnsPosition = false
+
         // Re-assert the newest stylesheet on every navigation.
         //
         // User scripts are registered once at launch from whatever was stored then. If
@@ -512,6 +556,18 @@ extension BrowserViewController: WKNavigationDelegate {
         saveState()
         hideScrollIndicators()
         lastScrollOffset = webView.scrollView.contentOffset.y
+    }
+
+    /// iOS kills the web content process under memory pressure, which leaves a blank
+    /// white view behind - indistinguishable from the app having lost its place, and
+    /// the reason to force-restart it. Reading far into a stitched series is what
+    /// builds that pressure. Reload where the reader was instead.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        if let url = restoredURL() ?? webView.url {
+            load(url)
+        } else {
+            load(homeURL)
+        }
     }
 }
 
@@ -529,6 +585,48 @@ extension BrowserViewController: WKUIDelegate {
             load(url)
         }
         return nil
+    }
+}
+
+// MARK: - Page messages
+
+extension BrowserViewController: WKScriptMessageHandler {
+
+    func userContentController(_ controller: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == "slimread",
+              let body = message.body as? [String: Any],
+              let type = body["type"] as? String else { return }
+
+        switch type {
+        case "position":
+            // Trust the page over webView.url: it knows which stitched chapter is
+            // actually under the top of the screen.
+            if let text = body["url"] as? String,
+               let url = URL(string: text),
+               url.scheme?.hasPrefix("http") == true {
+                pageOwnsPosition = true
+                persistPosition(text)
+            }
+        default:
+            break
+        }
+    }
+}
+
+/// Breaks the retain cycle WKUserContentController would otherwise create by
+/// holding its message handler strongly.
+private final class MessageRelay: NSObject, WKScriptMessageHandler {
+
+    private weak var target: BrowserViewController?
+
+    init(_ target: BrowserViewController) {
+        self.target = target
+    }
+
+    func userContentController(_ controller: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
     }
 }
 

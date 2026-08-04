@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.20 b15 01 Aug 23:02';
+    var TWEAKS_VERSION = '1.21 b16 04 Aug 16:37';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -113,6 +113,13 @@
     // Panels loaded the instant a chapter is entered, without waiting for the
     // observer, so a chapter opens already drawn rather than filling in.
     var PRIME_COUNT = 12;
+
+    // How many chapters may be stitched onto one page before the next one is
+    // reached by navigating instead. Each chapter is ~130 panels that are never
+    // released, so without a cap a long session ends in iOS killing the app - and
+    // that is what loses your reading position. Four chapters is a long stretch of
+    // uninterrupted scrolling; the fifth costs one page load at a chapter boundary.
+    var MAX_STITCHED = 4;
 
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
@@ -310,6 +317,22 @@
 
         nextIdAfter(IS.tailId).then(function (nid) {
             if (!nid) { IS.ended = true; IS.appending = false; return; }
+
+            // Stitching never released anything, so a long session grew until iOS
+            // killed the web process or the app - and a termination in the
+            // foreground is what loses your place. Past the cap, move on by
+            // navigating instead: memory resets completely, and you land at the top
+            // of the next chapter, which is exactly where the scroll would have put
+            // you anyway.
+            if (IS.blocks.length >= MAX_STITCHED) {
+                // Latch before navigating. The append watchdog keeps ticking until
+                // the new document actually replaces this one, and without this it
+                // would re-enter and assign location.href over and over.
+                IS.ended = true;
+                IS.appending = false;
+                location.href = '/episode/' + nid;
+                return;
+            }
             return fetch('/episode/' + nid, { credentials: 'include' })
                 .then(function (r) { return r.ok ? r.text() : null; })
                 .then(function (html) {
@@ -437,6 +460,79 @@
        the chapter you were reading. Going back is the app's back button now, which
        is unambiguous and cannot trigger itself. */
 
+    /* --- Remembering where you were -------------------------------------
+       Two halves. The chapter goes to the app, which reopens there next launch.
+       The offset within that chapter is kept here, because the app only restores
+       a URL and a stitched page cannot be rebuilt from one.
+       --------------------------------------------------------------------- */
+
+    var POS_KEY = 'slimread.pos.';
+    var lastReport = 0;
+
+    // localStorage.setItem is a synchronous write; doing it every scroll frame is
+    // exactly the kind of thing that makes scrolling stutter. Once a second is
+    // plenty to never lose more than a screen, and the important moments
+    // (arriving, leaving, backgrounding) pass force = true.
+    function reportPosition(force) {
+        var now = Date.now();
+        if (!force && now - lastReport < 1000) return;
+        lastReport = now;
+
+        var id = null;
+        if (IS.blocks.length) { var c = chapterUnderTop(); if (c) id = c.id; }
+        if (!id) id = currentEpisodeId();
+        if (!id) return;
+
+        var href = location.origin + '/episode/' + id;
+        try {
+            if (window.webkit && window.webkit.messageHandlers &&
+                window.webkit.messageHandlers.slimread) {
+                window.webkit.messageHandlers.slimread.postMessage({ type: 'position', url: href });
+            }
+        } catch (e) { /* not running in the app - fine */ }
+
+        // Offset measured from the top of the chapter you are in, so it still means
+        // something when that chapter is reopened on its own.
+        try {
+            var base = 0;
+            if (IS.blocks.length) {
+                var b = chapterUnderTop();
+                if (b) base = b.anchor.getBoundingClientRect().top + window.scrollY;
+            }
+            var within = Math.max(0, Math.round(window.scrollY - base));
+            localStorage.setItem(POS_KEY + id, String(within));
+        } catch (e) {}
+    }
+
+    /* Restore the offset for the chapter just opened. Cancelled the moment you
+       scroll yourself, so it can never fight you for control. */
+    function restorePosition() {
+        var id = currentEpisodeId();
+        if (!id) return;
+
+        var want = 0;
+        try { want = parseInt(localStorage.getItem(POS_KEY + id) || '0', 10); } catch (e) { return; }
+        if (!want || want < window.innerHeight) return;   // near the top anyway
+
+        var cancelled = false;
+        function cancel() { cancelled = true; }
+        window.addEventListener('touchstart', cancel, { passive: true, once: true });
+        window.addEventListener('wheel', cancel, { passive: true, once: true });
+
+        // Wait for the page to be tall enough to hold that offset, then scroll ONCE
+        // and stop. Scrolling repeatedly would keep dragging the page back while it
+        // is still growing - the reader tugging against itself.
+        var tries = 0;
+        (function settle() {
+            if (cancelled) return;
+            if (document.documentElement.scrollHeight > want + window.innerHeight) {
+                window.scrollTo(0, want);
+                return;
+            }
+            if (++tries < 25) setTimeout(settle, 150);
+        })();
+    }
+
     /* Brief on-screen message. The button used to do its work silently, so a tap
        that resolved to nothing was indistinguishable from a tap that missed. */
     function toast(text) {
@@ -459,7 +555,11 @@
        This navigates rather than trying to stitch and scroll. Stitching is for
        reading continuously; when you have deliberately asked to move on, the
        reliable thing is simply to go there. */
+    var navigating = false;
+
     window.__slimreadNextChapter = function () {
+        if (navigating) return;   // repeated taps while the next page is on its way
+
         var here = null;
         if (IS.blocks.length) { var c = chapterUnderTop(); if (c) here = c.id; }
         if (!here) here = IS.headId || currentEpisodeId();
@@ -475,10 +575,15 @@
         }
 
         toast('Loading next chapter...');
+        navigating = true;
         nextIdAfter(here).then(function (nid) {
-            if (nid) location.href = '/episode/' + nid;
-            else toast('This is the latest chapter');
-        }).catch(function () { toast('Could not reach the next chapter'); });
+            if (nid) { location.href = '/episode/' + nid; return; }
+            navigating = false;
+            toast('This is the latest chapter');
+        }).catch(function () {
+            navigating = false;
+            toast('Could not reach the next chapter');
+        });
     };
 
     function setupContinuousScroll() {
@@ -537,6 +642,7 @@
             scrollQueued = false;
             updateChapterURL();
             maybeAppend();
+            reportPosition();
         });
     }
 
@@ -545,10 +651,20 @@
         preconnectImageHost();
         observeImages();
         startAppendWatchdog();
+        restorePosition();
+        reportPosition(true);      // record the chapter immediately on arrival
+
         window.addEventListener('scroll', onScroll, { passive: true });
         window.addEventListener('load', function () { observeImages(); maybeAppend(); });
         setTimeout(function () { observeImages(); maybeAppend(); }, 500);
         setTimeout(function () { observeImages(); maybeAppend(); }, 1500);
+
+        // The last word before the app is backgrounded or the page goes away.
+        // pagehide and visibilitychange are the two that reliably fire on iOS.
+        window.addEventListener('pagehide', function () { reportPosition(true); });
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') reportPosition(true);
+        });
     }
 
     // Panels the site itself streams into the current chapter.

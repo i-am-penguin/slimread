@@ -8,6 +8,27 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.21 - 2026-08-04
+- Remember the chapter you were reading, reliably. The app was reading the web
+  view's URL, but chapters advance through history.pushState from the page, so it
+  could reopen at the chapter you originally opened rather than the one you had
+  scrolled to. The page now reports its chapter to the app directly.
+- Remember the position within a chapter too, restored on reopening and cancelled
+  the instant you scroll yourself.
+- Write the saved position straight to disk. It was flushed on the system's own
+  schedule, so a termination under memory pressure discarded the most recent
+  chapter - which is why progressing further made it more likely to forget.
+- Reload where you were if iOS kills the web content process, instead of leaving
+  a blank page behind.
+- Guard both places that navigate to another chapter against re-entry. The append
+  watchdog keeps ticking until the new document replaces the old one, so it could
+  assign location.href repeatedly, and repeated taps on the next-chapter button
+  did the same.
+- Cap continuous stitching at 4 chapters, then move on by navigating. Nothing was
+  ever released, so a long session grew until iOS killed the app - and that is
+  what lost your place. Reading is unbroken for four chapters; the fifth costs one
+  page load at a chapter boundary.
+
 ## v1.20 - 2026-08-01
 - Fix the endless scroll stopping at the bottom of a chapter. Appending was only
   ever triggered from the scroll handler, so once you were AT the end there was no
