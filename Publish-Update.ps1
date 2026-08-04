@@ -136,8 +136,27 @@ function Close-ChangelogSection {
     if (-not (Test-Path $path)) { return }
 
     $text = Get-Content $path -Raw
-    $stamped = "## v$Version - " + (Get-Date -Format 'yyyy-MM-dd')
-    $text = [regex]::Replace($text, '(?m)^##\s+Unreleased\s*$', "## Unreleased`r`n`r`n$stamped", 1)
+    # A version can legitimately be published twice - the first attempt failing
+    # leaves the tag free, so the same number is reused. Stamping unconditionally
+    # produced two "## v1.22" headings, and the release notes then depend on which
+    # one the extractor stops at. Fold into the existing section instead.
+    $existing = [regex]::Match($text, "(?m)^##\s+v$([regex]::Escape($Version))\b.*$")
+
+    if ($existing.Success) {
+        $newEntries = [regex]::Match($text, '(?ms)^##\s+Unreleased\s*$(.*?)(?=^##\s)')
+        if ($newEntries.Success -and $newEntries.Groups[1].Value.Trim()) {
+            $body = $newEntries.Groups[1].Value.TrimEnd()
+            # Move the pending notes under the heading that is already there...
+            $text = $text.Remove($newEntries.Index, $newEntries.Length).Insert(
+                $newEntries.Index, "## Unreleased`r`n`r`n")
+            $again = [regex]::Match($text, "(?m)^##\s+v$([regex]::Escape($Version))\b.*$")
+            $text = $text.Insert($again.Index + $again.Length, "$body")
+        }
+    } else {
+        $stamped = "## v$Version - " + (Get-Date -Format 'yyyy-MM-dd')
+        $text = [regex]::Replace($text, '(?m)^##\s+Unreleased\s*$', "## Unreleased`r`n`r`n$stamped", 1)
+    }
+
     [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
 }
 

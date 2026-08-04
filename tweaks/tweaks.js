@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.22 b19 04 Aug 16:51';
+    var TWEAKS_VERSION = '1.23 b20 04 Aug 19:46';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -228,6 +228,7 @@
         order: [],
         page: 0,
         hasMore: true,
+        lastError: false,   // last episode-list lookup failed - transient, never latched
         tailId: null,
         headId: null,
         article: null,
@@ -243,11 +244,12 @@
     }
 
     function apiEpisodes(page) {
-        return fetch('/series/' + IS.seriesId + '/episodes?page=' + page + '&sort=OLDEST',
-            { credentials: 'include', headers: { 'x-requested-with': 'XMLHttpRequest' } })
+        IS.lastError = false;
+        return fetchWithTimeout('/series/' + IS.seriesId + '/episodes?page=' + page + '&sort=OLDEST',
+            { credentials: 'include', headers: { 'x-requested-with': 'XMLHttpRequest' } }, 15000)
             .then(function (r) { return r.ok ? r.text() : null; })
             .then(function (text) {
-                if (!text) return false;
+                if (!text) { IS.lastError = true; return false; }   // server refused - try again later
                 var ids = [], re = /\/episode\/(\d+)/g, m;
                 while ((m = re.exec(text))) {
                     if (IS.order.indexOf(m[1]) < 0 && ids.indexOf(m[1]) < 0) ids.push(m[1]);
@@ -265,14 +267,29 @@
                 if (!ids.length && !IS.hasMore) return false;
                 return true;
             })
-            .catch(function () { IS.hasMore = false; return false; });
+            .catch(function () {
+                // A network blip, not an answer. Clearing hasMore here made a single
+                // failure the last word forever: the lookup then gave up instantly,
+                // the caller read that as "no next chapter" and latched IS.ended, and
+                // the endless scroll was over for the rest of the page.
+                IS.lastError = true;
+                return false;
+            });
     }
 
     function ensureIndexOf(id) {
+        // Clear the flag for THIS attempt. It exists to stop the recursion below
+        // from hammering a failing endpoint - not to remember across attempts,
+        // which would leave a stale failure blocking every later retry.
+        IS.lastError = false;
+
         var guard = 0;
         function step() {
             var i = IS.order.indexOf(id);
-            if (i >= 0 || !IS.hasMore || guard++ > 40) return Promise.resolve(i);
+            if (i >= 0) return Promise.resolve(i);
+            // Stop on an error too, but without recording anything permanent -
+            // the append watchdog comes back around in under a second.
+            if (IS.lastError || !IS.hasMore || guard++ > 40) return Promise.resolve(i);
             return apiEpisodes(IS.page + 1).then(step);
         }
         return step();
@@ -311,12 +328,48 @@
         return { panels: out, title: title.replace(/\s*\|\s*Tapas.*$/i, '').replace(/^Read\s+/i, '').trim() };
     }
 
+    /* fetch has no timeout of its own. A request that never settles - a stalled
+       radio, a captive portal, a hung connection - leaves IS.appending stuck true,
+       and since that flag blocks every future append, the reader stops dead at the
+       end of a chapter with nothing to indicate why. */
+    function fetchWithTimeout(url, options, ms) {
+        options = options || {};
+        if (typeof AbortController === 'function') {
+            var ac = new AbortController();
+            options.signal = ac.signal;
+            var timer = setTimeout(function () { ac.abort(); }, ms);
+            return fetch(url, options).then(
+                function (r) { clearTimeout(timer); return r; },
+                function (e) { clearTimeout(timer); throw e; }
+            );
+        }
+        // No AbortController: race it instead. The request keeps running, but the
+        // caller is released and can try again.
+        return Promise.race([
+            fetch(url, options),
+            new Promise(function (_, reject) {
+                setTimeout(function () { reject(new Error('timeout')); }, ms);
+            })
+        ]);
+    }
+
     function appendNextChapter() {
         if (!IS.active || IS.appending || IS.ended || !IS.article) return;
         IS.appending = true;
+        IS.appendingSince = Date.now();
 
         nextIdAfter(IS.tailId).then(function (nid) {
-            if (!nid) { IS.ended = true; IS.appending = false; return; }
+            if (!nid) {
+                // Only conclude the series has ended when the lookup actually
+                // succeeded and said so. Treating a failed lookup as "no more
+                // chapters" is permanent, and one blip would end the reader.
+                if (!IS.lastError) {
+                    IS.ended = true;
+                    toast('Reached the latest chapter');
+                }
+                IS.appending = false;
+                return;
+            }
 
             // Stitching never released anything, so a long session grew until iOS
             // killed the web process or the app - and a termination in the
@@ -333,14 +386,20 @@
                 location.href = '/episode/' + nid;
                 return;
             }
-            return fetch('/episode/' + nid, { credentials: 'include' })
+            return fetchWithTimeout('/episode/' + nid, { credentials: 'include' }, 20000)
                 .then(function (r) { return r.ok ? r.text() : null; })
                 .then(function (html) {
                     if (!html) { IS.appending = false; return; }   // network blip, retry later
 
                     var data = extractPanels(html);
                     // Fetched fine but no panels: locked/paid chapter, or the end.
-                    if (!data.panels.length) { IS.ended = true; IS.appending = false; return; }
+                    // Say so - silently stopping is indistinguishable from a bug.
+                    if (!data.panels.length) {
+                        IS.ended = true;
+                        IS.appending = false;
+                        toast('Next chapter is locked or unavailable');
+                        return;
+                    }
 
                     var frag = document.createDocumentFragment();
 
@@ -463,6 +522,14 @@
         appendTimer = setInterval(function () {
             if (!IS.active) return;
             if (IS.ended) { clearInterval(appendTimer); appendTimer = null; return; }
+
+            // Release a wedged in-progress flag. The fetches have their own
+            // timeouts now, but this flag blocks every future append, so it is
+            // worth guaranteeing it can never be stuck regardless of the cause.
+            if (IS.appending && Date.now() - IS.appendingSince > 30000) {
+                IS.appending = false;
+            }
+
             maybeAppend();
         }, 700);
     }
@@ -591,7 +658,8 @@
         nextIdAfter(here).then(function (nid) {
             if (nid) { location.href = '/episode/' + nid; return; }
             navigating = false;
-            toast('This is the latest chapter');
+            // Distinguish "there is no next one" from "could not find out".
+            toast(IS.lastError ? 'Could not reach the next chapter' : 'This is the latest chapter');
         }).catch(function () {
             navigating = false;
             toast('Could not reach the next chapter');

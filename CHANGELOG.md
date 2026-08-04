@@ -8,6 +8,25 @@ it to the version number when a build is published.
 
 ## Unreleased
 
+## v1.23 - 2026-08-04
+- Fix the reader stalling for good at the end of a chapter. Fetching the next one
+  set an "appending" flag and had no timeout, so a request that never settled -
+  a stalled radio, a hung connection - left that flag set forever, and it blocks
+  every future append. Both network calls now time out, and the watchdog releases
+  the flag if it is ever stuck regardless of cause.
+- Say why the reader stopped instead of just stopping: "Reached the latest
+  chapter" or "Next chapter is locked or unavailable". A silent stop was
+  indistinguishable from a bug.
+
+- Fix a single network hiccup ending the endless scroll for the rest of the page.
+  A failed episode-list lookup cleared the "there are more pages" flag, so every
+  later lookup gave up instantly, the caller read that as "no next chapter" and
+  latched the reader as finished. It only became easy to hit once the append
+  watchdog started calling the API early and often. A failed lookup is now
+  transient and the next attempt - under a second later - recovers.
+- The next-chapter button no longer says "This is the latest chapter" when it
+  simply could not reach the server.
+
 ## v1.22 - 2026-08-04
 - Fix the release build failing whenever a changelog entry contained a double
   quote. Actions substitutes expressions textually into the shell, so the quotes
@@ -15,8 +34,9 @@ it to the version number when a build is published.
   as asset names, which failed with: no matches found for `the`. Notes now go to a
   file read with --notes-file, and inputs come from the environment instead of
   being expanded inside the script.
-
-## v1.22 - 2026-08-04
+- Fold repeat publishes of the same version into one changelog section. A failed
+  release leaves the version free, so retrying it stamped a second heading with
+  the same number.
 - Fix the reader advancing chapters on its own. The append watchdog added in 1.20
   runs on a timer rather than on scroll, and "near the end" was measured from the
   page height - which is small while panels are still taking up their space. So
