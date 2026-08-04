@@ -9,6 +9,14 @@ it to the version number when a build is published.
 ## Unreleased
 
 ## v1.22 - 2026-08-04
+- Fix the release build failing whenever a changelog entry contained a double
+  quote. Actions substitutes expressions textually into the shell, so the quotes
+  in a note closed the --notes string and the rest of the words were passed to gh
+  as asset names, which failed with: no matches found for `the`. Notes now go to a
+  file read with --notes-file, and inputs come from the environment instead of
+  being expanded inside the script.
+
+## v1.22 - 2026-08-04
 - Fix the reader advancing chapters on its own. The append watchdog added in 1.20
   runs on a timer rather than on scroll, and "near the end" was measured from the
   page height - which is small while panels are still taking up their space. So

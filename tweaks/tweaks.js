@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.22 b18 04 Aug 16:47';
+    var TWEAKS_VERSION = '1.22 b19 04 Aug 16:51';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
