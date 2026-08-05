@@ -14,8 +14,11 @@ it to the version number when a build is published.
   opened directly stopped there for good: no next chapter, no message, and
   nothing left to scroll. A chapter too short to scroll at all was doubly stuck,
   because appending also required a scroll that could never happen.
-  The wait is now on the end of the page staying the end for a moment, which is
-  what "the panels have settled" actually means, so length no longer decides it.
+  What that height check was really reaching for is "the panels have taken up
+  their space", and the panels can simply be asked. Appending now waits for the
+  ones at the bottom of the page to have resolved - loaded or failed - so length
+  decides nothing, and a two-panel chapter qualifies the moment those two draw.
+  Height cannot tell a short chapter from an unloaded one; the panels can.
 - Stop treating "could not work out the next chapter" as "there is no next
   chapter". Locating the current chapter walks the episode list from page one,
   and running out of walk - which happens to whoever is deepest into a longest

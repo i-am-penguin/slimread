@@ -546,40 +546,81 @@
         return false;
     }
 
-    /* How long "you are at the end" has to hold before the next chapter is appended.
-       This is the guard against appending a chapter nobody asked for, and it works
-       on the one thing that actually distinguishes the two cases.
+    /* Is the bottom of the page the real bottom?
 
-       Arriving at a chapter whose panels have not taken up their space yet, the page
-       is short, so the end trivially looks near - and the watchdog runs on a timer
-       rather than on scroll, so it sees that. But it does not STAY near: every panel
-       that loads pushes the end away again, the condition goes false, and the dwell
-       restarts. A page that is genuinely finished holds it. */
+       The page's height means nothing until the panels down there have resolved.
+       Before that a chapter of ANY length is barely taller than the screen - the
+       placeholders carry no dimensions, so they take up no space - and "you are at
+       the end" is true of a chapter you have not started. That is the whole reason
+       an arrival can turn into four chapters and a navigation.
+
+       Asking the panels is the same question the old minimum-height check was
+       reaching for, without its false negative. Height cannot tell a chapter that
+       is short from a chapter that has not drawn yet, so a minimum dead-ends every
+       chapter below it; the panels distinguish the two exactly, and a two-panel
+       chapter satisfies this the moment those two have drawn.
+
+       `complete` deliberately counts a panel that FAILED to load as resolved: one
+       broken image at the end of a chapter must not become a dead end of its own. */
+    function tailResolved() {
+        var imgs = IS.article.querySelectorAll('.content__img');
+        if (!imgs.length) imgs = IS.article.getElementsByTagName('img');
+
+        var checked = 0;
+        for (var i = imgs.length - 1; i >= 0 && checked < 3; i--) {
+            var img = imgs[i];
+            if (!img.__slimreadDone) return false;   // never even asked to load
+            if (!img.complete) return false;         // asked, still in flight
+            checked++;
+        }
+        return checked > 0;
+    }
+
+    // How long the end has to stay the end. Cheap belt-and-braces on top of
+    // tailResolved(), covering the moment between a panel arriving and the reflow.
     var END_DWELL_MS = 1200;
 
+    // A panel whose request never settles either way - a hung connection rather
+    // than a failure - would otherwise hold the reader at the end of a chapter for
+    // good. Only ever reached after you have scrolled, so it cannot fire on arrival.
+    var STALL_ESCAPE_MS = 20000;
+
     var nearEndSince = 0;
-    var hasScrolled = false;
+    var stalledSince = 0;
 
     function maybeAppend() {
-        if (!IS.active || IS.ended) return;
+        if (!IS.active || IS.ended || !IS.article) return;
 
         var vh = window.innerHeight;
         var height = document.documentElement.scrollHeight;
-
-        if (height - (window.scrollY + vh) >= vh * 2.5) { nearEndSince = 0; return; }
-
-        // You also have to have moved, so simply opening a chapter never advances
-        // it. The exception is a chapter too short to scroll at all - a notice, an
-        // author's note, a bonus page. There is no scroll coming there, and waiting
-        // for one is a dead end: the chapter just stops, nothing loads, and there is
-        // nothing you can do about it.
-        //
-        // Measuring the page against a minimum height instead - "too short to be a
-        // real chapter yet" - is what created that dead end. A short chapter is a
-        // real chapter, and it never grew into one.
-        if (!hasScrolled && height > vh + 4) return;
-
         var now = Date.now();
+
+        if (height - (window.scrollY + vh) >= vh * 2.5) {
+            nearEndSince = 0;
+            stalledSince = 0;
+            return;
+        }
+
+        // You have to have moved, so opening a chapter never advances it. The
+        // exception is a chapter too short to scroll at all - a notice, an author's
+        // note, a bonus page. No scroll is coming there, and waiting for one is a
+        // dead end: the chapter simply stops and nothing can ever load.
+        var moved = window.scrollY > 0;
+        if (!moved && height > vh + 4) return;
+
+        if (tailResolved()) {
+            stalledSince = 0;
+        } else if (!moved) {
+            // Sitting at the top of a chapter whose panels have not drawn yet. This
+            // is the ordinary state of a chapter you just opened, and the state the
+            // reader used to mistake for the end of one. Wait.
+            nearEndSince = 0;
+            return;
+        } else {
+            if (!stalledSince) stalledSince = now;
+            if (now - stalledSince < STALL_ESCAPE_MS) { nearEndSince = 0; return; }
+        }
+
         if (!nearEndSince) { nearEndSince = now; return; }
         if (now - nearEndSince < END_DWELL_MS) return;
 
@@ -793,9 +834,6 @@
     // which is urgent enough to care about a paused frame or two.
     var scrollQueued = false;
     function onScroll() {
-        // Set before the throttle, not inside it: iOS suspends requestAnimationFrame
-        // during momentum scrolling, and this is what releases the append.
-        if (window.scrollY > 0) hasScrolled = true;
         if (scrollQueued) return;
         scrollQueued = true;
         requestAnimationFrame(function () {
