@@ -7,6 +7,24 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Fix the reader dead-ending at the end of a chapter. Appending was gated on the
+  page being at least three screens tall, as a stand-in for "the panels have
+  finished taking up their space". A chapter that never reaches three screens -
+  a notice, an author's note, a bonus page - therefore never qualified, and one
+  opened directly stopped there for good: no next chapter, no message, and
+  nothing left to scroll. A chapter too short to scroll at all was doubly stuck,
+  because appending also required a scroll that could never happen.
+  The wait is now on the end of the page staying the end for a moment, which is
+  what "the panels have settled" actually means, so length no longer decides it.
+- Stop treating "could not work out the next chapter" as "there is no next
+  chapter". Locating the current chapter walks the episode list from page one,
+  and running out of walk - which happens to whoever is deepest into a longest
+  series - latched the reader as finished for the rest of the page and said
+  "Reached the latest chapter". Only a lookup that succeeds and shows nothing
+  after this chapter ends the reader now; everything else retries, and a list
+  walked to its end without the chapter in it is discarded and rebuilt.
+- Retry a failed append instead of falling silent, briskly at first and never
+  slower than every five seconds, and say so if it goes on.
 
 ## v1.25 - 2026-08-04
 - Apply a changed tweaks.js without waiting for a navigation. User scripts are

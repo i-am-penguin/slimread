@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.25 b22 04 Aug 19:56';
+    var TWEAKS_VERSION = '1.26 chapter-end fix';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {
@@ -229,14 +229,22 @@
         page: 0,
         hasMore: true,
         lastError: false,   // last episode-list lookup failed - transient, never latched
+        unresolved: false,  // walked the list and this chapter was not in it - also transient
         tailId: null,
         headId: null,
         article: null,
         blocks: [],        // { id, title, anchor } per appended chapter
         appending: false,
+        misses: 0,          // consecutive appends that produced nothing definite
+        nextAttemptAt: 0,   // backoff floor, so a broken endpoint is not hammered
         ended: false,
         active: false
     };
+
+    // Only a stop against runaway recursion. The walk below starts at page 1 on
+    // every page load, so the reader who runs out of it is the one deepest into a
+    // long series - the last person who should be cut off. It is not a budget.
+    var MAX_LIST_PAGES = 120;
 
     function seriesIdFromDom() {
         var el = document.querySelector('[data-series-id]');
@@ -256,6 +264,13 @@
                 }
                 IS.order = IS.order.concat(ids);
                 IS.hasMore = /"has_next"\s*:\s*true/.test(text);
+
+                // Progress. A lookup that answers is the endpoint working, so the
+                // backoff below must not keep growing across a walk that is simply
+                // long, or a series deep enough to need several pages ends up
+                // waiting seconds between attempts for no reason.
+                IS.misses = 0;
+                IS.nextAttemptAt = 0;
 
                 // Track the page WE asked for. The "page" field in the response is
                 // the NEXT page, not the current one - requesting page 1 comes back
@@ -278,10 +293,11 @@
     }
 
     function ensureIndexOf(id) {
-        // Clear the flag for THIS attempt. It exists to stop the recursion below
+        // Clear the flags for THIS attempt. They exist to stop the recursion below
         // from hammering a failing endpoint - not to remember across attempts,
         // which would leave a stale failure blocking every later retry.
         IS.lastError = false;
+        IS.unresolved = false;
 
         var guard = 0;
         function step() {
@@ -289,7 +305,13 @@
             if (i >= 0) return Promise.resolve(i);
             // Stop on an error too, but without recording anything permanent -
             // the append watchdog comes back around in under a second.
-            if (IS.lastError || !IS.hasMore || guard++ > 40) return Promise.resolve(i);
+            if (IS.lastError || !IS.hasMore || guard++ > MAX_LIST_PAGES) {
+                // Ran out of list without finding this chapter. That is "could not
+                // find out", NOT "there is no next chapter" - the caller must not be
+                // allowed to conclude the series has ended from it.
+                IS.unresolved = true;
+                return Promise.resolve(i);
+            }
             return apiEpisodes(IS.page + 1).then(step);
         }
         return step();
@@ -353,20 +375,52 @@
         ]);
     }
 
+    /* An attempt that produced nothing, without establishing that there is nothing
+       to produce: a lookup that did not resolve, a fetch that came back empty.
+
+       Never latch on this. "There is no next chapter" and "could not find out" look
+       identical from here and only the first one is permanent; treating the second
+       as the first is what ends the reader for the rest of the page. Back off so an
+       endpoint that answers nothing at all is not hammered at watchdog speed, and
+       say something once the retries have gone on long enough to stop looking like a
+       blip.
+
+       The backoff stays short deliberately. Retrying briskly is what gets a reader
+       through a patchy connection - anything long enough to notice is worse than the
+       hammering it avoids, and any answer at all clears it. */
+    function appendMissed() {
+        IS.appending = false;
+        IS.misses++;
+        IS.nextAttemptAt = Date.now() + Math.min(700 * IS.misses, 5000);
+
+        // A list that was walked to its end without containing the chapter being
+        // read is a list that is wrong - a partial page, a response that changed
+        // shape. Drop it so the next attempt rebuilds it instead of re-deciding on
+        // the same bad data.
+        if (IS.unresolved && !IS.hasMore) {
+            IS.order = [];
+            IS.page = 0;
+            IS.hasMore = true;
+        }
+
+        if (IS.misses === 5) toast('Still looking for the next chapter...');
+    }
+
     function appendNextChapter() {
         if (!IS.active || IS.appending || IS.ended || !IS.article) return;
+        if (Date.now() < IS.nextAttemptAt) return;
         IS.appending = true;
         IS.appendingSince = Date.now();
 
         nextIdAfter(IS.tailId).then(function (nid) {
             if (!nid) {
                 // Only conclude the series has ended when the lookup actually
-                // succeeded and said so. Treating a failed lookup as "no more
-                // chapters" is permanent, and one blip would end the reader.
-                if (!IS.lastError) {
-                    IS.ended = true;
-                    toast('Reached the latest chapter');
-                }
+                // succeeded, placed this chapter in the list, and showed nothing
+                // after it. Anything less is a failure to find out, and latching on
+                // one of those is permanent - one blip would end the reader.
+                if (IS.lastError || IS.unresolved) { appendMissed(); return; }
+                IS.ended = true;
+                toast('Reached the latest chapter');
                 IS.appending = false;
                 return;
             }
@@ -389,7 +443,7 @@
             return fetchWithTimeout('/episode/' + nid, { credentials: 'include' }, 20000)
                 .then(function (r) { return r.ok ? r.text() : null; })
                 .then(function (html) {
-                    if (!html) { IS.appending = false; return; }   // network blip, retry later
+                    if (!html) { appendMissed(); return; }   // network blip, retry later
 
                     var data = extractPanels(html);
                     // Fetched fine but no panels: locked/paid chapter, or the end.
@@ -431,13 +485,15 @@
                     IS.blocks.push({ id: nid, title: data.title, anchor: anchor });
 
                     IS.appending = false;
+                    IS.misses = 0;
+                    IS.nextAttemptAt = 0;
                     observeImages(IS.article);   // hand the new panels to the observer
 
                     // Draw the start of the new chapter straight away, so arriving
                     // at it never lands on blank panels.
                     primeFrom(anchor, PRIME_COUNT);
                 });
-        }).catch(function () { IS.appending = false; });
+        }).catch(function () { appendMissed(); });
     }
 
     /* Keep the URL and title in step with whichever chapter is under the top of
@@ -490,23 +546,44 @@
         return false;
     }
 
+    /* How long "you are at the end" has to hold before the next chapter is appended.
+       This is the guard against appending a chapter nobody asked for, and it works
+       on the one thing that actually distinguishes the two cases.
+
+       Arriving at a chapter whose panels have not taken up their space yet, the page
+       is short, so the end trivially looks near - and the watchdog runs on a timer
+       rather than on scroll, so it sees that. But it does not STAY near: every panel
+       that loads pushes the end away again, the condition goes false, and the dwell
+       restarts. A page that is genuinely finished holds it. */
+    var END_DWELL_MS = 1200;
+
+    var nearEndSince = 0;
+    var hasScrolled = false;
+
     function maybeAppend() {
         if (!IS.active || IS.ended) return;
 
         var vh = window.innerHeight;
         var height = document.documentElement.scrollHeight;
 
-        // Two guards against appending a chapter nobody asked for.
-        //
-        // A page that has not reached its real height yet - panels still taking up
-        // their space - trivially looks "near the end", and the watchdog runs on a
-        // timer rather than on scroll. Together that meant arriving at a chapter
-        // could append the next one immediately, then the next, until the stitch
-        // cap navigated onward: the reader advancing chapters on its own.
-        if (height < vh * 3) return;        // too short to be a real chapter yet
-        if (window.scrollY <= 0) return;    // still at the very top - not the end
+        if (height - (window.scrollY + vh) >= vh * 2.5) { nearEndSince = 0; return; }
 
-        if (height - (window.scrollY + vh) < vh * 2.5) appendNextChapter();
+        // You also have to have moved, so simply opening a chapter never advances
+        // it. The exception is a chapter too short to scroll at all - a notice, an
+        // author's note, a bonus page. There is no scroll coming there, and waiting
+        // for one is a dead end: the chapter just stops, nothing loads, and there is
+        // nothing you can do about it.
+        //
+        // Measuring the page against a minimum height instead - "too short to be a
+        // real chapter yet" - is what created that dead end. A short chapter is a
+        // real chapter, and it never grew into one.
+        if (!hasScrolled && height > vh + 4) return;
+
+        var now = Date.now();
+        if (!nearEndSince) { nearEndSince = now; return; }
+        if (now - nearEndSince < END_DWELL_MS) return;
+
+        appendNextChapter();
     }
 
     /* Safety net for appending.
@@ -716,6 +793,9 @@
     // which is urgent enough to care about a paused frame or two.
     var scrollQueued = false;
     function onScroll() {
+        // Set before the throttle, not inside it: iOS suspends requestAnimationFrame
+        // during momentum scrolling, and this is what releases the append.
+        if (window.scrollY > 0) hasScrolled = true;
         if (scrollQueued) return;
         scrollQueued = true;
         requestAnimationFrame(function () {
