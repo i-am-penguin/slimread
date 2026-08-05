@@ -155,6 +155,44 @@
         return (IS.article || document).getElementsByTagName('img');
     }
 
+    /* Give a panel its space before it loads.
+
+       This is what makes the rolling buffer above actually roll. An unloaded panel
+       is a zero-height box, so before anything has loaded the whole chapter is
+       collapsed into a few pixels - and every panel in it therefore falls inside
+       LOAD_MARGIN at once. The buffer degrades into "fetch all ~130 panels of this
+       chapter immediately, at high priority, and hold them all decoded", which is
+       the opposite of what it is for, and it is what makes scrolling heavy while an
+       idle page feels fine. Measured on a 130-panel chapter: 130 promoted on
+       arrival with no reserved height, 12 with it, the rest arriving as they are
+       reached.
+
+       The site's markup carries the dimensions sometimes but not always, so fall
+       back to a neutral guess and drop it the moment the real panel lands. A wrong
+       guess cannot move the page under your thumb: only panels you have not reached
+       are unloaded, and content resizing BELOW the viewport does not shift what is
+       in it. Against today's behaviour it is strictly less layout shift, not more -
+       a zero-height box is a 100% wrong guess. */
+    function reserveSpace(img) {
+        if (img.__slimreadSized) return;
+        if (!lazyURL(img)) return;      // not a lazy panel - nothing to reserve
+        img.__slimreadSized = true;
+
+        var w = img.getAttribute('width') || img.getAttribute('data-width');
+        var h = img.getAttribute('height') || img.getAttribute('data-height');
+        if (w && h && +w > 0 && +h > 0) {
+            img.style.aspectRatio = w + ' / ' + h;
+            return;
+        }
+
+        // No dimensions to go on. Hold a plausible panel's worth of space until the
+        // real one arrives - including if it fails, or the gap never closes.
+        img.classList.add('slimread-unsized');
+        function settled() { img.classList.remove('slimread-unsized'); }
+        img.addEventListener('load', settled, { once: true });
+        img.addEventListener('error', settled, { once: true });
+    }
+
     function promote(img) {
         if (img.__slimreadDone) return;
         img.__slimreadDone = true;
@@ -215,6 +253,10 @@
         var imgs = (scope || IS.article || document).getElementsByTagName('img');
         for (var i = 0; i < imgs.length; i++) {
             var img = imgs[i];
+            // Before the skip below: a panel already promoted or already observed
+            // still needs its space reserved, or the collapse this prevents simply
+            // happens to the panels that got in first.
+            reserveSpace(img);
             if (img.__slimObserved || img.__slimreadDone) continue;
             img.__slimObserved = true;
             io.observe(img);
@@ -809,8 +851,12 @@
     function primeChapter(scope) {
         if (!scope) return;
         var imgs = scope.getElementsByTagName('img');
+        // Reserve the whole chapter's space before promoting anything, so the
+        // observer is created against a page of a believable height rather than a
+        // collapsed one. Otherwise its first pass finds every panel inside the band.
+        for (var i = 0; i < imgs.length; i++) reserveSpace(imgs[i]);
         var n = Math.min(imgs.length, PRIME_COUNT);
-        for (var i = 0; i < n; i++) promote(imgs[i]);
+        for (var j = 0; j < n; j++) promote(imgs[j]);
     }
 
     /* Same idea for an appended chapter: walk forward from its anchor and load the

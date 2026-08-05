@@ -160,6 +160,16 @@ img {
     vertical-align: top !important;
 }
 
+/* A panel that has not loaded and carries no dimensions to reserve space from.
+   Without this it is a zero-height box, the whole chapter collapses into the image
+   loader's band, and every panel in it is fetched at once instead of as you reach
+   it - see reserveSpace() in tweaks.js. Removed the moment the panel resolves, so
+   it never constrains a real one. */
+.slimread-reader .content__img.slimread-unsized,
+.slimread-reader img.slimread-unsized {
+    min-height: 60vh !important;
+}
+
 /* Divider marking where one chapter ends and the next begins. */
 .slimread-chapter-divider {
     box-sizing: border-box !important;

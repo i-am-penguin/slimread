@@ -7,6 +7,17 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Make the panel buffer actually roll. It loads whatever falls inside a band
+  around the viewport - but an unloaded panel is a zero-height box, so before
+  anything has loaded the entire chapter is collapsed into a few pixels and every
+  panel in it is inside that band at once. The buffer that is meant to travel with
+  you was therefore fetching all ~130 panels of a chapter the moment it opened, at
+  high priority, and holding every one of them decoded. Measured on a 130-panel
+  chapter: 130 promoted on arrival before, 12 now, the rest as they are reached.
+  Panels reserve their space up front now - from the markup's own dimensions where
+  it has them, a neutral guess where it does not, dropped as soon as the real panel
+  resolves. That is also strictly less layout shift than before, since a
+  zero-height box is a 100% wrong guess.
 - Fix the reader dead-ending at the end of a chapter. Appending was gated on the
   page being at least three screens tall, as a stand-in for "the panels have
   finished taking up their space". A chapter that never reaches three screens -
