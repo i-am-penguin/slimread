@@ -180,7 +180,13 @@ img {
    Without this it is a zero-height box, the whole chapter collapses into the image
    loader's band, and every panel in it is fetched at once instead of as you reach
    it - see reserveSpace() in tweaks.js. Removed the moment the panel resolves, so
-   it never constrains a real one. */
+   it never constrains a real one.
+
+   Why 60vh: a typical panel is 940x1400, which at a 390px-wide screen draws about
+   581px tall - roughly 69% of an 844px viewport. 60 is deliberately a shade under
+   that, so the page tends to GROW as panels land rather than shrink. Growth
+   happens below the viewport and moves nothing you are looking at; shrinkage pulls
+   content up toward you. */
 .slimread-reader .content__img.slimread-unsized,
 .slimread-reader img.slimread-unsized {
     min-height: 60vh !important;

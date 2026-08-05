@@ -216,29 +216,49 @@
     var knobs = {};
 
     (function readKnobs() {
+        // Whatever was set last time. Private browsing throws on localStorage
+        // rather than returning null, hence the catch - no knobs is a fine state.
         var stored = '';
         try { stored = localStorage.getItem(KNOB_KEY) || ''; } catch (e) {}
 
         var m = location.search.match(/[?&]slimread=([^&]*)/);
         if (m) {
             var given = decodeURIComponent(m[1]);
+
+            // The whole set is replaced, never merged - see the note above. Merging
+            // would be friendlier to type but there would then be no way to unset a
+            // single knob from the address bar, only to add more.
+            //
+            // `reset` and `off` both mean "clear": `off` because it is the word
+            // that comes to mind first when the meter is on and you want it gone.
             stored = (given === 'reset' || given === 'off') ? '' : given;
             try {
                 if (stored) localStorage.setItem(KNOB_KEY, stored);
                 else localStorage.removeItem(KNOB_KEY);
             } catch (e) {}
         }
-        if (!stored) return;
+        if (!stored) return;      // the common case: one read, nothing else
 
+        // `a=1,b=2` -> { a: '1', b: '2' }. Anything malformed is dropped silently:
+        // this is typed on a phone keyboard, and a typo that half-applied would be
+        // worse to diagnose than one that did nothing.
         stored.split(',').forEach(function (pair) {
             var kv = pair.split('=');
             if (kv.length === 2) knobs[kv[0].trim()] = kv[1].trim();
         });
 
+        // Overwrite the defaults above. The `> 0` guards mean a knob that is absent,
+        // zero, or not a number leaves its default alone - `+'abc'` is NaN and NaN
+        // fails every comparison, so garbage falls through rather than disabling
+        // the buffer outright.
         if (+knobs.ahead > 0) AHEAD_PANELS = +knobs.ahead;
         if (+knobs.prime > 0) PRIME_COUNT = +knobs.prime;
         if (+knobs.stitch > 0) MAX_STITCHED = +knobs.stitch;
+        // Vertical only, matching LOAD_MARGIN's own shape - a horizontal margin
+        // would do nothing here, the panels being full width.
         if (+knobs.margin > 0) LOAD_MARGIN = knobs.margin + '% 0px ' + knobs.margin + '% 0px';
+        // Spelled out both ways rather than `!== 'off'`, so that a typo like
+        // `reserve=yes` leaves the default rather than silently meaning "on".
         if (knobs.reserve === 'on') RESERVE = true;
         if (knobs.reserve === 'off') RESERVE = false;
     })();
@@ -278,16 +298,32 @@
         (document.body || root).appendChild(el);
 
         var last = performance.now(), worst = 0, late = 0, ticks = 0;
+
+        // The probe. A timer asked to run every 16ms can only run late, never
+        // early, and it runs late exactly when the main thread is busy with
+        // something else - so lateness IS the measurement. Subtracting the 16ms it
+        // was asked to wait leaves the part that is the page's fault.
         setInterval(function () {
             var now = performance.now();
             var behind = Math.max(0, now - last - 16);
             last = now;
             ticks++;
+            // 8ms is half a frame at 60Hz and a whole one at 120Hz - the point where
+            // being late has begun to cost something visible rather than just
+            // showing timer jitter.
             if (behind > 8) late++;
             if (behind > worst) worst = behind;
         }, 16);
 
         setInterval(function () {
+            // Counts panels holding real artwork. currentSrc is the image the
+            // browser actually settled on, so it stays empty for a panel that was
+            // asked to load and has not - which is the number worth seeing. The
+            // placeholder is a data: URI, hence excluding those.
+            //
+            // This walks every image once a second. That is affordable precisely
+            // because the meter is off unless asked for; it would not be something
+            // to run by default.
             var live = 0, imgs = document.getElementsByTagName('img');
             for (var i = 0; i < imgs.length; i++) {
                 if (imgs[i].currentSrc && imgs[i].currentSrc.indexOf('data:') !== 0) live++;
@@ -297,6 +333,8 @@
                 (ticks ? Math.round(late * 100 / ticks) : 0) + '% late | ' +
                 'panels ' + live + '/' + imgs.length + ' | ' +
                 'page ' + Math.round(document.documentElement.scrollHeight / 1000) + 'k | ' +
+                // +1: blocks holds the chapters APPENDED to this page, so the one
+                // the page was opened on is not among them.
                 'ch ' + (IS.blocks.length + 1);
             worst = 0; late = 0; ticks = 0;      // per-second window
         }, 1000);
@@ -632,6 +670,9 @@
 
     function appendNextChapter() {
         if (!IS.active || IS.appending || IS.ended || !IS.article) return;
+        // Serving a backoff from a run of failures - see appendMissed(). The
+        // watchdog keeps calling every 700ms regardless; this is what stops that
+        // becoming 700ms of retries against an endpoint that is not answering.
         if (Date.now() < IS.nextAttemptAt) return;
         IS.appending = true;
         IS.appendingSince = Date.now();
@@ -709,6 +750,10 @@
                     IS.blocks.push({ id: nid, title: data.title, anchor: anchor });
 
                     IS.appending = false;
+                    // A chapter landed, so whatever run of failures preceded it is
+                    // over. Clearing both here means a reader who scrolls through a
+                    // patchy stretch does not carry its backoff into the next
+                    // chapter boundary, where the connection may be fine again.
                     IS.misses = 0;
                     IS.nextAttemptAt = 0;
                     observeImages(IS.article);   // hand the new panels to the observer
@@ -813,6 +858,9 @@
     var stalledSince = 0;
 
     function maybeAppend() {
+        // !IS.article is not redundant with !IS.active: tailResolved() below reads
+        // IS.article directly, so this is what keeps it from throwing on a page
+        // where the reader never found an article to work with.
         if (!IS.active || IS.ended || !IS.article) return;
 
         var vh = window.innerHeight;
@@ -1139,6 +1187,8 @@
     function boot() {
         coverViewport();
         showVersionBadge();
+        // Before the reader starts, so the meter is already counting while the
+        // first chapter loads - which is the busiest the main thread ever gets.
         if (knobs.hud === 'on') startHUD();
         syncMutationObserver();
         onRouteChange();
