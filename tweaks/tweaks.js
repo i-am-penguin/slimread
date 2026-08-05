@@ -121,10 +121,29 @@
     // uninterrupted scrolling; the fifth costs one page load at a chapter boundary.
     var MAX_STITCHED = 4;
 
-    // Whether panels reserve their space before loading. On by default - see
-    // reserveSpace(). Turning it off restores the older behaviour, where the whole
-    // chapter loads on arrival instead of as you reach it.
-    var RESERVE = true;
+    /* Whether panels reserve their space before loading - see reserveSpace().
+
+       OFF by default, on the reader's evidence rather than mine. Reserving space
+       makes the buffer above roll properly, which is the behaviour the loader was
+       written for and holds far less artwork at once. But it also moves every
+       panel's load - and the box resize that follows it, because the reserved size
+       is a guess - out of the moment a chapter opens and into the scroll.
+
+       That matters more than it sounds. scrollHeight is read on every scroll frame
+       and every watchdog tick, and it is free while layout is clean and a full
+       reflow while it is dirty: measured at 0.001ms against 0.105ms on a 227k-px,
+       520-panel page, a hundredfold. Loading panels is what dirties layout. Loading
+       them all on arrival means layout settles once and the page is cheap to scroll
+       afterwards; loading them as you go means it is never settled while you are
+       moving. On the device, the second one is reported as scrolling that gets
+       sluggish and recovers the moment you stop, and that report is the only
+       measurement of the thing that actually matters here.
+
+       Turn it on with ?slimread=reserve=on. Worth revisiting if the reserved size
+       can be made exact enough that a loading panel does not resize - at that point
+       the buffer rolls without dirtying layout, and both properties are available
+       at once. */
+    var RESERVE = false;
 
     /* --- Runtime knobs ---------------------------------------------------
        Every number above is a guess about a device this file cannot measure from.
@@ -166,6 +185,7 @@
         if (+knobs.prime > 0) PRIME_COUNT = +knobs.prime;
         if (+knobs.stitch > 0) MAX_STITCHED = +knobs.stitch;
         if (+knobs.margin > 0) LOAD_MARGIN = knobs.margin + '% 0px ' + knobs.margin + '% 0px';
+        if (knobs.reserve === 'on') RESERVE = true;
         if (knobs.reserve === 'off') RESERVE = false;
     })();
 

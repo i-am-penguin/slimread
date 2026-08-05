@@ -14,17 +14,22 @@ it to the version number when a build is published.
   `?slimread=reserve=off` to compare against the old loading behaviour,
   `?slimread=reset` to clear. Stored, so it survives moving between chapters.
   Inert unless set: with nothing stored this reads one key and stops.
-- Make the panel buffer actually roll. It loads whatever falls inside a band
-  around the viewport - but an unloaded panel is a zero-height box, so before
-  anything has loaded the entire chapter is collapsed into a few pixels and every
-  panel in it is inside that band at once. The buffer that is meant to travel with
-  you was therefore fetching all ~130 panels of a chapter the moment it opened, at
-  high priority, and holding every one of them decoded. Measured on a 130-panel
-  chapter: 130 promoted on arrival before, 12 now, the rest as they are reached.
-  Panels reserve their space up front now - from the markup's own dimensions where
-  it has them, a neutral guess where it does not, dropped as soon as the real panel
-  resolves. That is also strictly less layout shift than before, since a
-  zero-height box is a 100% wrong guess.
+- Found why the panel buffer has never rolled, then left it not rolling. It loads
+  whatever falls inside a band around the viewport - but an unloaded panel is a
+  zero-height box, so before anything loads the whole chapter is collapsed into a
+  few pixels and every panel is inside that band at once. Every version since 1.15
+  has therefore fetched all ~130 panels of a chapter the moment it opened, which
+  also means AHEAD_PANELS, PRIME_COUNT and LOAD_MARGIN have done nothing at all
+  since 1.15. Reserving each panel's space up front fixes it - 12 on arrival
+  instead of 130 - but it moves every load, and the box resize behind it, into the
+  scroll. scrollHeight is read every scroll frame and every watchdog tick, and it
+  is free while layout is clean and a full reflow while it is dirty: 0.001ms
+  against 0.105ms on a 227k-px page. Loading panels is what dirties layout. All at
+  once means layout settles once and scrolling is cheap after; as-you-go means it
+  is never settled while you move, which on the device reads as scrolling that
+  drags and recovers the moment you stop. Off by default on that evidence, and
+  available as `?slimread=reserve=on`. Worth another go if the reserved size can
+  be made exact enough not to resize on load.
 - Fix the reader dead-ending at the end of a chapter. Appending was gated on the
   page being at least three screens tall, as a stand-in for "the panels have
   finished taking up their space". A chapter that never reaches three screens -
