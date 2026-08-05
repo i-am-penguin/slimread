@@ -98,6 +98,28 @@
     var LAZY_ATTRS = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-echo'];
     var TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
+    /* READ THIS BEFORE TUNING THE NEXT THREE.
+
+       LOAD_MARGIN, AHEAD_PANELS and PRIME_COUNT describe a buffer that travels
+       with the reader, loading a window of panels around wherever they are. That
+       is what they are for. It is not what they do.
+
+       They are all INERT while RESERVE is off, which is the default. An unloaded
+       panel is a zero-height box, so before anything has loaded the whole chapter
+       is collapsed into a few pixels - and every panel in it is therefore inside
+       LOAD_MARGIN on the observer's very first pass, whatever LOAD_MARGIN says.
+       Every panel is promoted at once, so there is no window left for AHEAD_PANELS
+       to widen and nothing for PRIME_COUNT to get a head start on.
+
+       This is not a theory. Measured across every release on a 130-panel chapter,
+       all of 1.15 through 1.25 load 130 of 130 panels on arrival - identically -
+       while LOAD_MARGIN goes 300, 800, 1600, 600 and PRIME_COUNT goes 6 to 12
+       across those same versions. Tuning them has changed nothing since 1.15.
+
+       So: changing these three does nothing unless you also set reserve=on. With
+       reserve=on they become live for the first time and the numbers below start
+       meaning what they say. */
+
     // When a panel comes within this much of the viewport it is considered
     // "reached", which starts the rolling window below. Kept moderate on purpose -
     // the depth of the buffer is AHEAD_PANELS' job, not this one's.
@@ -145,18 +167,50 @@
        at once. */
     var RESERVE = false;
 
-    /* --- Runtime knobs ---------------------------------------------------
-       Every number above is a guess about a device this file cannot measure from.
-       Set them from the app's address bar instead:
+    /* --- Runtime knobs ----------------------------------------------------
+       Every number above is a guess about a device this file cannot be measured
+       from. Rather than push a new guess and wait to hear how it felt, set them
+       from the app's address bar and find out in seconds.
 
-           tapas.io/?slimread=stitch=2,ahead=6
-           tapas.io/?slimread=hud=on          - show the meter below
-           tapas.io/?slimread=reserve=off     - load the whole chapter on arrival
-           tapas.io/?slimread=reset           - back to defaults
+       Type any of these into the control bar's address field:
 
-       Stored, so it survives navigation between chapters. Everything here is inert
-       unless something has been set: with no stored knobs this block reads one
-       localStorage key and does nothing else. */
+           tapas.io/?slimread=hud=on              turn the meter on (see startHUD)
+           tapas.io/?slimread=stitch=2            2 chapters live instead of 4
+           tapas.io/?slimread=stitch=2,ahead=6    several at once, comma separated
+           tapas.io/?slimread=reserve=on          roll the buffer (see RESERVE)
+           tapas.io/?slimread=reset               clear everything, back to defaults
+
+       The knobs, their defaults, and what they cost:
+
+           hud=on|off     off   The meter. Costs a 16ms timer while it is on, so
+                                turn it off when you are done reading numbers.
+           stitch=N       4     MAX_STITCHED. Chapters kept on one page before the
+                                reader navigates instead. Lower = less artwork
+                                live, at one page load per N chapters.
+           reserve=on|off off   RESERVE. On, panels reserve space and load as you
+                                reach them; off, the whole chapter loads at once.
+                                Read the RESERVE comment before changing this - the
+                                two are not simply better and worse.
+           ahead=N        12    AHEAD_PANELS  }  all three are INERT while
+           prime=N        12    PRIME_COUNT   }  reserve=off, which is the default.
+           margin=N       600   LOAD_MARGIN   }  See the note on those three above.
+
+       Two things that are easy to trip over:
+
+       Setting knobs REPLACES the stored set, it does not merge into it. After
+       `?slimread=reserve=on`, typing `?slimread=hud=on` turns the meter on AND
+       puts reserve back to its default. To keep both, name both:
+       `?slimread=hud=on,reserve=on`.
+
+       They are stored in localStorage under KNOB_KEY, so they survive navigating
+       between chapters, backgrounding the app, and relaunching it. They are not
+       cleared by anything else - a knob set and forgotten stays set. `reset` (or
+       `off`) is the only way back. Nothing here is announced on screen either,
+       apart from the meter, so `?slimread=reset` is worth trying first if the
+       reader is ever behaving unlike this file says it should.
+
+       Everything below is inert unless something has been stored: with no knobs
+       set it reads one localStorage key and stops. */
 
     var KNOB_KEY = 'slimread.knobs';
     var knobs = {};
@@ -189,10 +243,35 @@
         if (knobs.reserve === 'off') RESERVE = false;
     })();
 
-    /* The meter. Reports how late a 16ms timer actually runs - which is a direct
-       reading of how busy the main thread is, and unlike a frame counter it stays
-       meaningful on iOS, where requestAnimationFrame is suspended during momentum
-       scrolling anyway. Scroll for a few seconds and read the worst figure. */
+    /* The meter, shown by ?slimread=hud=on. Bottom-left, so it does not sit under
+       the top-left corner that opens the control bar.
+
+       It reports how late a 16ms timer actually runs, which reads how blocked the
+       main thread is. A frame counter would not do: iOS suspends
+       requestAnimationFrame during momentum scrolling, so it reports dropped frames
+       whether or not anything is wrong.
+
+       Scroll for ten seconds or so and read it. Every figure is for the last second
+       only - the window resets each tick, so it shows what is happening now rather
+       than an average that hides the spikes.
+
+           block 34ms worst / 12% late | panels 24/130 | page 67k | ch 2
+                 |              |               |             |        |
+                 |              |               |             |        chapters
+                 |              |               |             |        stitched
+                 |              |               |             page height, px/1000
+                 |              |               panels holding artwork / panels
+                 |              |               present. Reads N/N with reserve
+                 |              |               off - that is expected, not a fault
+                 |              share of ticks that ran more than 8ms late
+                 worst single stall. Under ~10ms is fine. 30ms+ is a visible
+                 hitch. 50ms+ and something is genuinely wrong.
+
+       Worth knowing what it cannot see: this measures the MAIN THREAD only. If
+       scrolling feels bad while these numbers stay low, the cost is in compositing
+       - WebKit rasterising a very tall page full of large panels - and nothing in
+       this file will fix it. That is a useful answer, not a failed measurement:
+       it says stop tuning the page and reduce how much page there is (stitch=N). */
     function startHUD() {
         var el = document.createElement('div');
         el.className = 'slimread-hud';

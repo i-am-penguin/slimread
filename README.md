@@ -178,6 +178,48 @@ syntax error or an offline launch cannot leave you with a broken reader.
 Only changes to *native* behaviour — the status bar, gestures, the control bar itself —
 need a new build.
 
+### Tuning knobs
+
+The loader's numbers — how deep the panel buffer runs, how many chapters stay on one page —
+are guesses about a device that can't be measured from the repository. Rather than push a
+change and wait to hear how it felt, set them from the app's own address bar and find out in
+seconds. Type any of these into the control bar's address field:
+
+| | |
+|---|---|
+| `tapas.io/?slimread=hud=on` | Show the meter (below) |
+| `tapas.io/?slimread=stitch=2` | Keep 2 chapters on the page instead of 4 |
+| `tapas.io/?slimread=reserve=on` | Load panels as you reach them, not all on arrival |
+| `tapas.io/?slimread=stitch=2,ahead=6` | Several at once, comma separated |
+| `tapas.io/?slimread=reset` | Clear everything, back to defaults |
+
+| knob | default | what it does |
+|---|---|---|
+| `hud` | `off` | The meter. Costs a 16ms timer while on. |
+| `stitch` | `4` | Chapters kept on one page before the reader navigates instead. Lower holds less artwork, at one page load per N chapters. |
+| `reserve` | `off` | On, panels reserve their space and load as you reach them. Off, the whole chapter loads at once. Neither is simply better — see the `RESERVE` comment in `tweaks.js`. |
+| `ahead` | `12` | **Inert unless `reserve=on`.** |
+| `prime` | `12` | **Inert unless `reserve=on`.** |
+| `margin` | `600` | **Inert unless `reserve=on`.** |
+
+Two things that are easy to trip over. Setting knobs **replaces** the stored set rather than
+merging into it, so `?slimread=hud=on` after `?slimread=reserve=on` also puts `reserve` back
+to its default — name both if you want both. And they persist in `localStorage` across
+relaunches until cleared, silently; if the reader is ever behaving unlike the docs say,
+`?slimread=reset` is worth trying before assuming a bug.
+
+**The meter** reads how blocked the main thread is, sampled over the last second:
+
+```
+block 34ms worst / 12% late | panels 24/130 | page 67k | ch 2
+```
+
+`block` is the worst single stall — under ~10ms is fine, 30ms+ is a visible hitch. `panels`
+is how many hold artwork out of how many exist; it reads N/N with `reserve=off`, which is
+expected. It measures the main thread only: if scrolling feels bad while `block` stays low,
+the cost is in compositing a very tall page, and no CSS or JS here will fix it — reduce how
+much page there is with `stitch=N` instead.
+
 ## Requirements
 
 - iOS 15.0 or later
