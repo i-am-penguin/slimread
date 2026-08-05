@@ -121,6 +121,88 @@
     // uninterrupted scrolling; the fifth costs one page load at a chapter boundary.
     var MAX_STITCHED = 4;
 
+    // Whether panels reserve their space before loading. On by default - see
+    // reserveSpace(). Turning it off restores the older behaviour, where the whole
+    // chapter loads on arrival instead of as you reach it.
+    var RESERVE = true;
+
+    /* --- Runtime knobs ---------------------------------------------------
+       Every number above is a guess about a device this file cannot measure from.
+       Set them from the app's address bar instead:
+
+           tapas.io/?slimread=stitch=2,ahead=6
+           tapas.io/?slimread=hud=on          - show the meter below
+           tapas.io/?slimread=reserve=off     - load the whole chapter on arrival
+           tapas.io/?slimread=reset           - back to defaults
+
+       Stored, so it survives navigation between chapters. Everything here is inert
+       unless something has been set: with no stored knobs this block reads one
+       localStorage key and does nothing else. */
+
+    var KNOB_KEY = 'slimread.knobs';
+    var knobs = {};
+
+    (function readKnobs() {
+        var stored = '';
+        try { stored = localStorage.getItem(KNOB_KEY) || ''; } catch (e) {}
+
+        var m = location.search.match(/[?&]slimread=([^&]*)/);
+        if (m) {
+            var given = decodeURIComponent(m[1]);
+            stored = (given === 'reset' || given === 'off') ? '' : given;
+            try {
+                if (stored) localStorage.setItem(KNOB_KEY, stored);
+                else localStorage.removeItem(KNOB_KEY);
+            } catch (e) {}
+        }
+        if (!stored) return;
+
+        stored.split(',').forEach(function (pair) {
+            var kv = pair.split('=');
+            if (kv.length === 2) knobs[kv[0].trim()] = kv[1].trim();
+        });
+
+        if (+knobs.ahead > 0) AHEAD_PANELS = +knobs.ahead;
+        if (+knobs.prime > 0) PRIME_COUNT = +knobs.prime;
+        if (+knobs.stitch > 0) MAX_STITCHED = +knobs.stitch;
+        if (+knobs.margin > 0) LOAD_MARGIN = knobs.margin + '% 0px ' + knobs.margin + '% 0px';
+        if (knobs.reserve === 'off') RESERVE = false;
+    })();
+
+    /* The meter. Reports how late a 16ms timer actually runs - which is a direct
+       reading of how busy the main thread is, and unlike a frame counter it stays
+       meaningful on iOS, where requestAnimationFrame is suspended during momentum
+       scrolling anyway. Scroll for a few seconds and read the worst figure. */
+    function startHUD() {
+        var el = document.createElement('div');
+        el.className = 'slimread-hud';
+        (document.body || root).appendChild(el);
+
+        var last = performance.now(), worst = 0, late = 0, ticks = 0;
+        setInterval(function () {
+            var now = performance.now();
+            var behind = Math.max(0, now - last - 16);
+            last = now;
+            ticks++;
+            if (behind > 8) late++;
+            if (behind > worst) worst = behind;
+        }, 16);
+
+        setInterval(function () {
+            var live = 0, imgs = document.getElementsByTagName('img');
+            for (var i = 0; i < imgs.length; i++) {
+                if (imgs[i].currentSrc && imgs[i].currentSrc.indexOf('data:') !== 0) live++;
+            }
+            el.textContent =
+                'block ' + worst.toFixed(0) + 'ms worst / ' +
+                (ticks ? Math.round(late * 100 / ticks) : 0) + '% late | ' +
+                'panels ' + live + '/' + imgs.length + ' | ' +
+                'page ' + Math.round(document.documentElement.scrollHeight / 1000) + 'k | ' +
+                'ch ' + (IS.blocks.length + 1);
+            worst = 0; late = 0; ticks = 0;      // per-second window
+        }, 1000);
+    }
+
     function lazyURL(img) {
         for (var i = 0; i < LAZY_ATTRS.length; i++) {
             var v = img.getAttribute(LAZY_ATTRS[i]);
@@ -174,6 +256,7 @@
        in it. Against today's behaviour it is strictly less layout shift, not more -
        a zero-height box is a 100% wrong guess. */
     function reserveSpace(img) {
+        if (!RESERVE) return;
         if (img.__slimreadSized) return;
         if (!lazyURL(img)) return;      // not a lazy panel - nothing to reserve
         img.__slimreadSized = true;
@@ -957,6 +1040,7 @@
     function boot() {
         coverViewport();
         showVersionBadge();
+        if (knobs.hud === 'on') startHUD();
         syncMutationObserver();
         onRouteChange();
         if (isReaderPage()) startReader();

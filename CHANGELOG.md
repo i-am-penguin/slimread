@@ -7,6 +7,13 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Add runtime knobs, set from the address bar, for the numbers this file cannot
+  measure from where it is written - buffer depth, load margin, stitch cap,
+  whether panels reserve space - plus a meter reading how blocked the main thread
+  is while scrolling. `tapas.io/?slimread=hud=on`, `?slimread=stitch=2,ahead=6`,
+  `?slimread=reserve=off` to compare against the old loading behaviour,
+  `?slimread=reset` to clear. Stored, so it survives moving between chapters.
+  Inert unless set: with nothing stored this reads one key and stops.
 - Make the panel buffer actually roll. It loads whatever falls inside a band
   around the viewport - but an unloaded panel is a zero-height box, so before
   anything has loaded the entire chapter is collapsed into a few pixels and every
