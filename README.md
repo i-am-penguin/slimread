@@ -198,6 +198,7 @@ seconds. Type any of these into the control bar's address field:
 | `hud` | `off` | The meter. Costs a 16ms timer while on. |
 | `stitch` | `4` | Chapters kept on one page before the reader navigates instead. Lower holds less artwork, at one page load per N chapters. |
 | `reserve` | `off` | On, panels reserve their space and load as you reach them. Off, the whole chapter loads at once. Neither is simply better — see the `RESERVE` comment in `tweaks.js`. |
+| `autonav` | `off` | On, reaching the stitch cap moves to the next chapter by itself instead of waiting for the next-chapter button. Either way it never moves before the true bottom of the page. |
 | `ahead` | `12` | **Inert unless `reserve=on`.** |
 | `prime` | `12` | **Inert unless `reserve=on`.** |
 | `margin` | `600` | **Inert unless `reserve=on`.** |

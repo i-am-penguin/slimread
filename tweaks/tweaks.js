@@ -167,6 +167,21 @@
        at once. */
     var RESERVE = false;
 
+    /* Whether reaching the stitch cap moves the reader to the next chapter by
+       itself, or stops and waits to be told.
+
+       OFF, because changing chapter is the reader's decision. Stitching is not that
+       decision - it extends the page downward, out of sight, and the reader still
+       chooses whether to scroll into it. Navigating is: it replaces the page and
+       moves them. The two got run from the same trigger, and the result was being
+       carried off two screens before the chapter ended.
+
+       On (?slimread=autonav=on) reading continues past the cap without a tap, at
+       the cost of a page load landing you at the top of the next chapter. Even then
+       it waits for the true bottom - see atBottom() - so it can never happen while
+       there is chapter left to read. */
+    var AUTONAV = false;
+
     /* --- Runtime knobs ----------------------------------------------------
        Every number above is a guess about a device this file cannot be measured
        from. Rather than push a new guess and wait to hear how it felt, set them
@@ -191,6 +206,10 @@
                                 reach them; off, the whole chapter loads at once.
                                 Read the RESERVE comment before changing this - the
                                 two are not simply better and worse.
+           autonav=on|off off   AUTONAV. On, reaching the stitch cap moves to the
+                                next chapter by itself instead of waiting for the
+                                next-chapter button. Either way it never moves
+                                before the true bottom of the page.
            ahead=N        12    AHEAD_PANELS  }  all three are INERT while
            prime=N        12    PRIME_COUNT   }  reserve=off, which is the default.
            margin=N       600   LOAD_MARGIN   }  See the note on those three above.
@@ -261,6 +280,8 @@
         // `reserve=yes` leaves the default rather than silently meaning "on".
         if (knobs.reserve === 'on') RESERVE = true;
         if (knobs.reserve === 'off') RESERVE = false;
+        if (knobs.autonav === 'on') AUTONAV = true;
+        if (knobs.autonav === 'off') AUTONAV = false;
     })();
 
     /* The meter, shown by ?slimread=hud=on. Bottom-left, so it does not sit under
@@ -668,6 +689,29 @@
         if (IS.misses === 5) toast('Still looking for the next chapter...');
     }
 
+    /* Run something once the reader has genuinely reached the bottom of the page.
+
+       Not the append trigger's idea of "near the end" - that deliberately fires
+       2.5 screens early so a chapter can be fetched and spliced in before it is
+       needed, which is exactly the wrong moment to do anything the reader can see.
+       This is the real bottom, within a third of a screen of it.
+
+       Checks immediately as well as on scroll, since the reader may already be
+       there, and unhooks itself after firing once. */
+    function atBottom(fn) {
+        var fired = false;
+        function check() {
+            if (fired) return;
+            var d = document.documentElement;
+            if (d.scrollHeight - (window.scrollY + window.innerHeight) > window.innerHeight * 0.33) return;
+            fired = true;
+            window.removeEventListener('scroll', check);
+            fn();
+        }
+        window.addEventListener('scroll', check, { passive: true });
+        check();
+    }
+
     function appendNextChapter() {
         if (!IS.active || IS.appending || IS.ended || !IS.article) return;
         // Serving a backoff from a run of failures - see appendMissed(). The
@@ -697,12 +741,35 @@
             // of the next chapter, which is exactly where the scroll would have put
             // you anyway.
             if (IS.blocks.length >= MAX_STITCHED) {
-                // Latch before navigating. The append watchdog keeps ticking until
-                // the new document actually replaces this one, and without this it
-                // would re-enter and assign location.href over and over.
+                // The cap is reached. STOP here - do not navigate.
+                //
+                // Navigating from this point was actively wrong, because appending
+                // and navigating shared one trigger. maybeAppend() fires when the
+                // bottom of the page comes within 2.5 screens, which is right for an
+                // append - the chapter lands below you, unseen, ready by the time
+                // you reach it - and wrong for a navigation, which throws away
+                // everything below you and moves you to a different page. At a
+                // reading pace that took the reader away with two full screens of
+                // the chapter still unread. Measured at 1708px on a 844px viewport.
+                //
+                // Changing chapters is the reader's to do, not this file's. So the
+                // stitching stops and the next-chapter button takes it from here.
+                // This is a deliberate stop with a way forward, not the silent dead
+                // end that this whole area used to be - hence saying so, and saying
+                // it when the reader actually arrives rather than two screens early.
                 IS.ended = true;
                 IS.appending = false;
-                location.href = '/episode/' + nid;
+
+                if (AUTONAV) {
+                    // Opt-in via ?slimread=autonav=on, for continuous reading past
+                    // the cap. Still never mid-chapter: this waits for the real
+                    // bottom instead of the append trigger's 2.5-screen lead.
+                    atBottom(function () { location.href = '/episode/' + nid; });
+                } else {
+                    atBottom(function () {
+                        toast('End of what is loaded - tap the next-chapter button');
+                    });
+                }
                 return;
             }
             return fetchWithTimeout('/episode/' + nid, { credentials: 'include' }, 20000)

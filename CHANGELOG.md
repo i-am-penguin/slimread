@@ -7,6 +7,16 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Stop the reader moving to the next chapter on its own. Appending and navigating
+  were driven from the same trigger, which fires when the bottom of the page comes
+  within 2.5 screens. That is right for an append - the chapter lands below you,
+  unseen, ready by the time you reach it - and wrong for a navigation, which throws
+  away everything below you and moves you to another page. At a reading pace it
+  took you off the chapter with two full screens still unread; measured at 1708px
+  on an 844px viewport. Reaching the stitch cap now stops and says so, and the
+  next-chapter button takes it from there: changing chapter is yours to do.
+  `?slimread=autonav=on` restores continuous reading past the cap, and even then
+  waits for the true bottom rather than the append trigger's lead.
 - Add runtime knobs, set from the address bar, for the numbers this file cannot
   measure from where it is written - buffer depth, load margin, stitch cap,
   whether panels reserve space - plus a meter reading how blocked the main thread
