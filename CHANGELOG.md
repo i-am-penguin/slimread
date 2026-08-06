@@ -17,6 +17,12 @@ it to the version number when a build is published.
   next-chapter button takes it from there: changing chapter is yours to do.
   `?slimread=autonav=on` restores continuous reading past the cap, and even then
   waits for the true bottom rather than the append trigger's lead.
+- Say when a knob is set, and add `?slimread=show` to ask later. A knob changes how
+  the reader behaves and then persists with nothing on screen to say so, which
+  makes one turned on and forgotten indistinguishable from a bug - `stitch=2` has
+  already been reported as one, having quietly moved the chapter cap onto the third
+  chapter. Setting a knob now confirms itself, and `show` reports what is in force
+  without changing it.
 - Add runtime knobs, set from the address bar, for the numbers this file cannot
   measure from where it is written - buffer depth, load margin, stitch cap,
   whether panels reserve space - plus a meter reading how blocked the main thread

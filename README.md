@@ -191,6 +191,7 @@ seconds. Type any of these into the control bar's address field:
 | `tapas.io/?slimread=stitch=2` | Keep 2 chapters on the page instead of 4 |
 | `tapas.io/?slimread=reserve=on` | Load panels as you reach them, not all on arrival |
 | `tapas.io/?slimread=stitch=2,ahead=6` | Several at once, comma separated |
+| `tapas.io/?slimread=show` | Report what's set right now, change nothing |
 | `tapas.io/?slimread=reset` | Clear everything, back to defaults |
 
 | knob | default | what it does |
@@ -206,8 +207,10 @@ seconds. Type any of these into the control bar's address field:
 Two things that are easy to trip over. Setting knobs **replaces** the stored set rather than
 merging into it, so `?slimread=hud=on` after `?slimread=reserve=on` also puts `reserve` back
 to its default — name both if you want both. And they persist in `localStorage` across
-relaunches until cleared, silently; if the reader is ever behaving unlike the docs say,
-`?slimread=reset` is worth trying before assuming a bug.
+relaunches until cleared. Setting one confirms itself on screen, and `?slimread=show` will
+tell you later what's in force — worth asking before assuming a bug, since a knob left on
+looks exactly like one. `stitch=2` has already been mistaken for a fault this way: it moves
+the chapter cap onto your third chapter, where the default puts it on the fifth.
 
 **The meter** reads how blocked the main thread is, sampled over the last second:
 

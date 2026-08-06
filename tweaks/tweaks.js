@@ -193,7 +193,12 @@
            tapas.io/?slimread=stitch=2            2 chapters live instead of 4
            tapas.io/?slimread=stitch=2,ahead=6    several at once, comma separated
            tapas.io/?slimread=reserve=on          roll the buffer (see RESERVE)
+           tapas.io/?slimread=show                what is set right now, changes nothing
            tapas.io/?slimread=reset               clear everything, back to defaults
+
+       Setting one confirms itself on screen. `show` is how to ask later, once the
+       confirmation is long gone - a knob left on is otherwise indistinguishable
+       from the reader misbehaving.
 
        The knobs, their defaults, and what they cost:
 
@@ -234,6 +239,14 @@
     var KNOB_KEY = 'slimread.knobs';
     var knobs = {};
 
+    // Announced by boot() once there is a body to put a toast in. A knob changes
+    // how the reader behaves and then persists indefinitely with nothing on screen
+    // to say so, which makes a setting turned on and forgotten indistinguishable
+    // from a bug - it has already happened once, `stitch=2` moving the chapter cap
+    // onto the third chapter weeks after it was set. Confirming the change when it
+    // is made costs nothing and removes that.
+    var knobNotice = '';
+
     (function readKnobs() {
         // Whatever was set last time. Private browsing throws on localStorage
         // rather than returning null, hence the catch - no knobs is a fine state.
@@ -244,17 +257,28 @@
         if (m) {
             var given = decodeURIComponent(m[1]);
 
-            // The whole set is replaced, never merged - see the note above. Merging
-            // would be friendlier to type but there would then be no way to unset a
-            // single knob from the address bar, only to add more.
-            //
-            // `reset` and `off` both mean "clear": `off` because it is the word
-            // that comes to mind first when the meter is on and you want it gone.
-            stored = (given === 'reset' || given === 'off') ? '' : given;
-            try {
-                if (stored) localStorage.setItem(KNOB_KEY, stored);
-                else localStorage.removeItem(KNOB_KEY);
-            } catch (e) {}
+            if (given === 'show') {
+                // Read-only. The only way to find out what is set without changing
+                // it - and the answer to "is the reader misbehaving, or did I leave
+                // a knob on?", which is worth being able to ask.
+                knobNotice = stored ? 'knobs: ' + stored : 'no knobs set - defaults';
+            } else {
+                // The whole set is replaced, never merged - see the note above.
+                // Merging would be friendlier to type but there would then be no way
+                // to unset a single knob from the address bar, only to add more.
+                //
+                // `reset` and `off` both mean "clear": `off` because it is the word
+                // that comes to mind first when the meter is on and you want it gone.
+                stored = (given === 'reset' || given === 'off') ? '' : given;
+                try {
+                    if (stored) localStorage.setItem(KNOB_KEY, stored);
+                    else localStorage.removeItem(KNOB_KEY);
+                } catch (e) {}
+                // Say what is now in force, including that nothing is. Setting a
+                // knob and seeing no response is how you end up setting it twice,
+                // or believing it took when a typo dropped it.
+                knobNotice = stored ? 'knobs: ' + stored : 'knobs cleared - defaults';
+            }
         }
         if (!stored) return;      // the common case: one read, nothing else
 
@@ -1257,6 +1281,10 @@
         // Before the reader starts, so the meter is already counting while the
         // first chapter loads - which is the busiest the main thread ever gets.
         if (knobs.hud === 'on') startHUD();
+        // Confirm a knob change on the page that made it. Only when one was just
+        // typed, never on the chapter loads afterwards - a setting that announced
+        // itself every page would be its own nuisance.
+        if (knobNotice) toast(knobNotice);
         syncMutationObserver();
         onRouteChange();
         if (isReaderPage()) startReader();
