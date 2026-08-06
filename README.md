@@ -192,6 +192,7 @@ seconds. Type any of these into the control bar's address field:
 | `tapas.io/?slimread=reserve=on` | Load panels as you reach them, not all on arrival |
 | `tapas.io/?slimread=stitch=2,ahead=6` | Several at once, comma separated |
 | `tapas.io/?slimread=show` | Report what's set right now, change nothing |
+| `tapas.io/?slimread=trail` | The last 30 chapter changes and what caused each |
 | `tapas.io/?slimread=reset` | Clear everything, back to defaults |
 
 | knob | default | what it does |
@@ -211,6 +212,24 @@ relaunches until cleared. Setting one confirms itself on screen, and `?slimread=
 tell you later what's in force — worth asking before assuming a bug, since a knob left on
 looks exactly like one. `stitch=2` has already been mistaken for a fault this way: it moves
 the chapter cap onto your third chapter, where the default puts it on the fifth.
+
+**The chapter trail** is always recording, knobs or no knobs — a switch you have to flip
+*before* a bug happens is no use, because you don't know it's coming. `?slimread=trail` shows
+the last 30 chapter changes and what caused each:
+
+```
+06:41:54  open    1001  (navigate)
+06:41:57  append  1002  (stitched below, nothing moved)
+06:41:58  scroll  1002  (crossed a stitch boundary)
+06:42:05  back/fwd 1002  (history)
+06:42:06  open    1003  (reload)
+```
+
+`append` and `scroll` are the reader working normally — content added below you, then you
+scrolling into it. `open … (reload)` means **the app replaced the page under you**, which it
+does whenever `tweaks.js` changes, discarding the stitched page and landing wherever the URL
+pointed. That one is invisible from inside the page any other way, and it's the usual answer
+to "it moved and I didn't touch it". `button` and `cap nav` are deliberate navigations.
 
 **The meter** reads how blocked the main thread is, sampled over the last second:
 

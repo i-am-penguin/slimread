@@ -17,6 +17,15 @@ it to the version number when a build is published.
   next-chapter button takes it from there: changing chapter is yours to do.
   `?slimread=autonav=on` restores continuous reading past the cap, and even then
   waits for the true bottom rather than the append trigger's lead.
+- Record a chapter trail, always, and show it with `?slimread=trail`. "It changed
+  chapter on its own" has several causes that feel alike and cannot be told apart
+  afterwards: scrolling across a stitched boundary, the app reloading the web view
+  and discarding the stitched page, a deliberate navigation, or history. The last
+  30 changes are now kept with the cause of each, including whether a page arrived
+  by navigation, reload or back/forward - a reload being the app replacing the page
+  under you, which nothing inside the page could otherwise see. It records whether
+  or not a knob is set, since a switch that has to be flipped before the bug is no
+  use.
 - Say when a knob is set, and add `?slimread=show` to ask later. A knob changes how
   the reader behaves and then persists with nothing on screen to say so, which
   makes one turned on and forgotten indistinguishable from a bug - `stitch=2` has

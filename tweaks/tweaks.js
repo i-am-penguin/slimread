@@ -194,6 +194,7 @@
            tapas.io/?slimread=stitch=2,ahead=6    several at once, comma separated
            tapas.io/?slimread=reserve=on          roll the buffer (see RESERVE)
            tapas.io/?slimread=show                what is set right now, changes nothing
+           tapas.io/?slimread=trail               the last 30 chapter changes and why
            tapas.io/?slimread=reset               clear everything, back to defaults
 
        Setting one confirms itself on screen. `show` is how to ask later, once the
@@ -247,6 +248,63 @@
     // is made costs nothing and removes that.
     var knobNotice = '';
 
+    /* --- Chapter trail ----------------------------------------------------
+       A short record of every chapter change and what caused it, kept across page
+       loads. Read it back with ?slimread=trail.
+
+       This exists because "it moved to another chapter on its own" has three
+       completely different causes that feel similar and cannot be told apart after
+       the fact: the page scrolling you across a stitched boundary, the app
+       reloading the web view (which it does whenever tweaks.js changes, discarding
+       the stitched page and landing you wherever the URL pointed), and an actual
+       navigation. A harness can reproduce the first and the third. It cannot
+       reproduce the second at all, which is exactly the one that is hardest to
+       recognise from the passenger seat.
+
+       One localStorage write per chapter change - not per scroll - and it is the
+       only thing here that runs whether or not a knob is set. That is deliberate:
+       a trail you have to switch on before the bug happens is no use, since you do
+       not know it is coming. */
+    var TRAIL_KEY = 'slimread.trail';
+
+    function trail(what) {
+        try {
+            var t = JSON.parse(localStorage.getItem(TRAIL_KEY) || '[]');
+            t.push(new Date().toTimeString().slice(0, 8) + '  ' + what);
+            if (t.length > 30) t = t.slice(-30);
+            localStorage.setItem(TRAIL_KEY, JSON.stringify(t));
+        } catch (e) { /* private mode - no trail, no harm */ }
+    }
+
+    /* How this document came to exist, which is the whole question when a chapter
+       changes by itself. "reload" means the app replaced the page under you -
+       refreshTweaks() does that on every tweaks.js change - and that is invisible
+       from inside the page except right here. */
+    function navKind() {
+        try {
+            var e = performance.getEntriesByType('navigation')[0];
+            if (e && e.type) return e.type;                  // navigate|reload|back_forward
+            if (performance.navigation) {                    // older WebKit
+                return ['navigate', 'reload', 'back_forward'][performance.navigation.type] || '?';
+            }
+        } catch (e) {}
+        return '?';
+    }
+
+    function showTrail() {
+        var el = document.createElement('div');
+        el.className = 'slimread-trail';
+        var lines = [];
+        try { lines = JSON.parse(localStorage.getItem(TRAIL_KEY) || '[]'); } catch (e) {}
+        el.textContent = lines.length
+            ? 'chapter trail (newest last)\n' + lines.join('\n') + '\n\ntap to dismiss'
+            : 'no trail recorded yet\n\ntap to dismiss';
+        el.addEventListener('click', function () {
+            if (el.parentNode) el.parentNode.removeChild(el);
+        });
+        (document.body || root).appendChild(el);
+    }
+
     (function readKnobs() {
         // Whatever was set last time. Private browsing throws on localStorage
         // rather than returning null, hence the catch - no knobs is a fine state.
@@ -257,7 +315,10 @@
         if (m) {
             var given = decodeURIComponent(m[1]);
 
-            if (given === 'show') {
+            if (given === 'trail') {
+                // Read-only, and handled in boot() once there is a body to draw in.
+                knobs.trail = 'show';
+            } else if (given === 'show') {
                 // Read-only. The only way to find out what is set without changing
                 // it - and the answer to "is the reader misbehaving, or did I leave
                 // a knob on?", which is worth being able to ask.
@@ -788,9 +849,13 @@
                     // Opt-in via ?slimread=autonav=on, for continuous reading past
                     // the cap. Still never mid-chapter: this waits for the real
                     // bottom instead of the append trigger's 2.5-screen lead.
-                    atBottom(function () { location.href = '/episode/' + nid; });
+                    atBottom(function () {
+                        trail('cap nav ' + nid + '  (autonav=on, at the bottom)');
+                        location.href = '/episode/' + nid;
+                    });
                 } else {
                     atBottom(function () {
+                        trail('cap stop  (waiting for the next-chapter button)');
                         toast('End of what is loaded - tap the next-chapter button');
                     });
                 }
@@ -839,6 +904,7 @@
                     IS.article.appendChild(frag);
                     IS.tailId = nid;
                     IS.blocks.push({ id: nid, title: data.title, anchor: anchor });
+                    trail('append  ' + nid + '  (stitched below, nothing moved)');
 
                     IS.appending = false;
                     // A chapter landed, so whatever run of failures preceded it is
@@ -890,6 +956,7 @@
         } catch (e) { return; }
 
         pushedIds[id] = true;
+        trail('scroll  ' + id + '  (crossed a stitch boundary)');
         if (title) document.title = title;
     }
 
@@ -1137,7 +1204,7 @@
         toast('Loading next chapter...');
         navigating = true;
         nextIdAfter(here).then(function (nid) {
-            if (nid) { location.href = '/episode/' + nid; return; }
+            if (nid) { trail('button  ' + nid + '  (you tapped next-chapter)'); location.href = '/episode/' + nid; return; }
             navigating = false;
             // Distinguish "there is no next one" from "could not find out".
             toast(IS.lastError ? 'Could not reach the next chapter' : 'This is the latest chapter');
@@ -1267,6 +1334,7 @@
             // Back/forward between chapters we stitched together: scroll to it
             // instead of letting the browser reload and lose the stitched page.
             var id = (e.state && e.state.slimread) || currentEpisodeId();
+            trail('back/fwd ' + id + '  (history)');
             if (IS.active && scrollToEpisode(id)) {
                 lastPath = location.pathname;
                 return;
@@ -1285,6 +1353,13 @@
         // typed, never on the chapter loads afterwards - a setting that announced
         // itself every page would be its own nuisance.
         if (knobNotice) toast(knobNotice);
+        if (knobs.trail === 'show') showTrail();
+
+        // Record how this document came to be, before anything else can change the
+        // chapter. "reload" here is the app having replaced the page under you,
+        // which is the one cause of an unexplained chapter change that cannot be
+        // seen any other way from inside the page.
+        if (isReaderPage()) trail('open    ' + currentEpisodeId() + '  (' + navKind() + ')');
         syncMutationObserver();
         onRouteChange();
         if (isReaderPage()) startReader();

@@ -176,6 +176,21 @@ img {
     white-space: nowrap !important;
 }
 
+/* The chapter trail, shown by ?slimread=trail. Covers the page deliberately - it
+   is being read, not glanced at - and dismisses on tap. */
+.slimread-trail {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483647 !important;
+    overflow: auto !important;
+    background: rgba(0, 0, 0, 0.94) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    font: 400 11px/1.55 ui-monospace, Menlo, monospace !important;
+    white-space: pre !important;
+    padding: 60px 14px 40px !important;
+    margin: 0 !important;
+}
+
 /* A panel that has not loaded and carries no dimensions to reserve space from.
    Without this it is a zero-height box, the whole chapter collapses into the image
    loader's band, and every panel in it is fetched at once instead of as you reach
