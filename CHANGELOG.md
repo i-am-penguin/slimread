@@ -7,6 +7,14 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Draw the way on at the end of the page, where the scrolling stops. Pausing at the
+  stitch cap announced itself with a toast naming the next-chapter button - gone in
+  1.6 seconds, and naming a button inside a control bar that has to be summoned from
+  the top-left corner first. Reaching the end and finding nothing was therefore
+  indistinguishable from the reader being broken, and was reported as exactly that,
+  with 45 seconds between arriving at the wall and finding the way past it. There is
+  now a real button in the page at the point the scrolling ends, with a line saying
+  why the pause exists. `?slimread=autonav=on` still skips the pause entirely.
 - Stop the reader moving to the next chapter on its own. Appending and navigating
   were driven from the same trigger, which fires when the bottom of the page comes
   within 2.5 screens. That is right for an append - the chapter lands below you,

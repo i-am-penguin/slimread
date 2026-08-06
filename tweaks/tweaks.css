@@ -176,6 +176,45 @@ img {
     white-space: nowrap !important;
 }
 
+/* The way on, drawn at the end of the page when continuous scrolling stops at the
+   stitch cap - see showNextButton() in tweaks.js. It sits where the scrolling ends
+   rather than in the control bar, because the control bar has to be summoned from
+   the top-left corner and a reader who has just hit an unexplained wall has no
+   reason to think of doing that. Sized for a thumb. */
+.slimread-next {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 44px 20px 72px !important;
+    margin: 0 !important;
+    background: #000 !important;
+    text-align: center !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.slimread-next-btn {
+    display: inline-block !important;
+    min-width: 210px !important;
+    padding: 15px 30px !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: #000 !important;
+    border: 0 !important;
+    border-radius: 11px !important;
+    font: 600 15px/1 -apple-system, system-ui, sans-serif !important;
+    letter-spacing: 0.01em !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.slimread-next-btn:disabled { opacity: 0.55 !important; }
+
+.slimread-next-note {
+    margin: 14px auto 0 !important;
+    max-width: 300px !important;
+    color: rgba(255, 255, 255, 0.42) !important;
+    font: 400 11px/1.45 -apple-system, system-ui, sans-serif !important;
+}
+
 /* The chapter trail, shown by ?slimread=trail. Covers the page deliberately - it
    is being read, not glanced at - and dismisses on tap. */
 .slimread-trail {

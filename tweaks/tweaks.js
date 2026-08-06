@@ -797,6 +797,46 @@
         check();
     }
 
+    /* The way on, at the end of the page, where the scrolling stops.
+
+       The stitch cap used to announce itself with a toast saying to tap the
+       next-chapter button. That was a bad exit for two reasons: the toast is gone
+       in 1.6 seconds, and the button it names lives inside the control bar, which
+       has to be summoned from the top-left corner first. Reaching the end and
+       finding nothing was therefore indistinguishable from the reader being broken
+       - it was reported as exactly that, 45 seconds passing between arriving at the
+       wall and finding the way past it.
+
+       A button in the page has neither problem. It is where the scrolling stops, it
+       stays there, and it is the thing you were already looking for. Changing
+       chapter is still the reader's own doing - this only makes the choice
+       reachable. */
+    function showNextButton() {
+        if (!IS.article || IS.article.querySelector('.slimread-next')) return;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'slimread-next';
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slimread-next-btn';
+        btn.textContent = 'Next chapter';
+        btn.addEventListener('click', function () {
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+            if (window.__slimreadNextChapter) window.__slimreadNextChapter();
+        });
+
+        var note = document.createElement('div');
+        note.className = 'slimread-next-note';
+        note.textContent = 'Continuous scrolling pauses here to keep the app from '
+                         + 'running out of memory.';
+
+        wrap.appendChild(btn);
+        wrap.appendChild(note);
+        IS.article.appendChild(wrap);
+    }
+
     function appendNextChapter() {
         if (!IS.active || IS.appending || IS.ended || !IS.article) return;
         // Serving a backoff from a run of failures - see appendMissed(). The
@@ -856,7 +896,7 @@
                 } else {
                     atBottom(function () {
                         trail('cap stop  (waiting for the next-chapter button)');
-                        toast('End of what is loaded - tap the next-chapter button');
+                        showNextButton();
                     });
                 }
                 return;
