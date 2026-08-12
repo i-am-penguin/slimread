@@ -560,6 +560,33 @@ The free certificate expired. Run `SlimRead.bat` again and re-sideload. App data
 reading position all survive. Set up [Automatic renewal](#automatic-renewal) so it stops
 happening.
 
+### "SlimRead is no longer available"
+
+**Do not delete the app.** That message comes from iOS, not from SlimRead, and deleting is the
+one action that turns a five-minute fix into losing your Tapas login and your reading
+position.
+
+It almost always means iOS **offloaded** the app — removed the binary to reclaim storage while
+keeping its data. Tapping the icon makes iOS try to re-download it from the App Store, and
+SlimRead was never there, so it reports it as no longer available. A small cloud ☁ beside the
+app's name on the Home Screen confirms this is what happened.
+
+Certificate expiry is the other possibility, but it usually looks different — "Unable to
+Verify App", or the app opens and immediately quits. Either way the fix is the same:
+
+**Run `SlimRead.bat` again and re-sideload over the top.** Sideloadly reinstalls the same
+bundle identifier, so the existing data container reattaches: your logins, reading position,
+saved scroll offsets and any `?slimread=` settings all come back. Nothing needs re-fetching —
+`tweaks/` is pulled fresh from this repository on the next launch regardless.
+
+To stop it recurring, turn offloading off:
+
+**Settings → App Store → Offload Unused Apps → off.**
+
+Also check **Settings → General → iPhone Storage**, which offers to offload apps individually
+when space runs low — SlimRead is a prime candidate there, because reading a long series fills
+the web view's cache and makes the app look large and idle to iOS.
+
 ### A page renders oddly, or a tweak went too far
 
 Everything about page layout lives in [`tweaks/`](tweaks/). Delete the offending rule, push,
