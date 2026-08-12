@@ -198,8 +198,59 @@ function New-CommitMessage {
     return "Update $what ($count) - $when"
 }
 
+# Brings in work pushed from another device BEFORE anything local is touched.
+#
+# Without this the divergence is only discovered at the push, by which point the
+# run has already stamped tweaks.js, rolled the changelog and made a commit - so
+# the failure leaves the PC half-advanced and the obvious next move (forcing the
+# push) silently destroys whatever the other device did.
+function Sync-WithRemote {
+    Step 'Checking for work from another device'
+
+    & git fetch origin --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Say 'could not reach GitHub - carrying on, the push will catch it' Yellow
+        return
+    }
+
+    $upstream = (& git rev-parse --abbrev-ref '@{u}' 2>$null)
+    if (-not $upstream) { Say 'no upstream branch set - skipping' Yellow; return }
+    $upstream = $upstream.Trim()
+
+    $counts = (& git rev-list --left-right --count "HEAD...$upstream" 2>$null)
+    if (-not $counts) { return }
+
+    $parts = @(($counts -split '\s+') | Where-Object { $_ })
+    if ($parts.Count -lt 2) { return }
+    $behind = [int]$parts[1]
+
+    if ($behind -eq 0) { Say 'up to date with GitHub' Green; return }
+
+    Say "$behind commit(s) on GitHub that this PC does not have" Yellow
+    Say 'bringing them in first, before anything here is committed'
+
+    # --autostash so uncommitted edits on this PC are set aside and put back.
+    & git pull --rebase --autostash
+    if ($LASTEXITCODE -ne 0) {
+        & git rebase --abort *> $null
+        Stop-With 'Your work and the other device''s work overlap' @(
+            'Both changed the same lines, so they cannot be combined automatically.',
+            'Sort it out by hand, then run this again:',
+            '    git pull --rebase',
+            '    ...fix the conflicting files, then:',
+            '    git add -A ; git rebase --continue',
+            'Nothing was committed or pushed, so nothing here is lost.'
+        )
+    }
+
+    Say 'merged - this PC now has everything' Green
+}
+
 Push-Location $ProjectDir
 try {
+    # Always reconcile first. Everything below writes to the working tree.
+    Sync-WithRemote
+
     # ---- decide what is being published, BEFORE anything is committed ----------
     #
     # The version has to be known before the commit, or the stamp baked into

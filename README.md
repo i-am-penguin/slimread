@@ -163,6 +163,17 @@ from this repository each time the app launches or returns to the foreground.
 **Edit `tweaks/tweaks.css` or `tweaks/tweaks.js`, push, reopen the app.** The change is live.
 No rebuild, no re-signing, no reinstall, no PC.
 
+Two things worth knowing about the timing:
+
+- **Allow a few minutes.** `raw.githubusercontent.com` serves these with `max-age=300`, and
+  that edge cache cannot be bypassed from the app — a unique query parameter still comes back
+  `X-Cache: HIT`. So a push can take up to five minutes to become visible.
+- **A changed `tweaks.js` reloads the page.** WKWebView only applies a user script at the next
+  page load, so re-registering it is not enough on its own. The app also fetches `tweaks/` in
+  the background between sessions, which usually means the newest copy is already stored when
+  you open it and no reload is needed — but iOS decides whether background refresh runs, so
+  the reload remains the guarantee. CSS is swapped into the live page and never reloads.
+
 - `tweaks.css` — layout. Full-width panels, black backgrounds, and hiding on-page chrome
   inside a chapter (top bar, bottom toolbar, comments, recommendations), scoped so listing
   pages are left alone.

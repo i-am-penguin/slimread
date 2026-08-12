@@ -34,7 +34,7 @@
 
     /* --- Version marker (stamped by the publish script) ------------------ */
 
-    var TWEAKS_VERSION = '1.26 chapter-end fix';
+    var TWEAKS_VERSION = '1.26 b1 12 Aug 17:03';
     var SHOW_BADGE = true;
 
     function showVersionBadge() {

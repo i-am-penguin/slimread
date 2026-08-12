@@ -45,6 +45,24 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 
+	<!-- ============================================================
+	     Background tweaks refresh.
+	     Pulls tweaks/ while the app is closed so the newest copy is
+	     already stored when it opens - otherwise the fetch races the
+	     first page load and the page has to be reloaded once the new
+	     script arrives. Purely an optimisation: iOS decides whether
+	     these ever run, and the reload path remains the guarantee.
+	     The identifier must match AppDelegate.refreshTaskID.
+	     ============================================================ -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.example.slimread.tweaks-refresh</string>
+	</array>
+
 	<key>UILaunchScreen</key>
 	<dict/>
 

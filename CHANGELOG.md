@@ -7,6 +7,22 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+
+## v1.26 - 2026-08-12
+- Fetch tweaks/ in the background, so the newest copy is already stored when the
+  app opens. The fetch used to start at launch and race the first page load; the
+  page won, rendered with the previous copy, and the app reloaded once the new
+  script arrived. Correct, but visible. This lands the files ahead of time so
+  there is nothing to correct. Purely an optimisation - iOS decides whether these
+  ever run, and Background App Refresh can be switched off, so the reload path
+  stays exactly as it was.
+
+- Publishing now pulls work pushed from another device before it touches
+  anything locally. The divergence used to surface only at the push, by which
+  point the run had already stamped tweaks.js, rolled the changelog and made a
+  commit - leaving the PC half-advanced, with the obvious next move (forcing the
+  push) silently destroying whatever the other device did. Overlapping edits stop
+  with instructions instead of guessing.
 - Draw the way on at the end of the page, where the scrolling stops. Pausing at the
   stitch cap announced itself with a toast naming the next-chapter button - gone in
   1.6 seconds, and naming a button inside a control bar that has to be summoned from
