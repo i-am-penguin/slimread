@@ -7,6 +7,23 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Only retry a panel once the page has gone quiet. The retry added below started
+  every panel's clock at the same instant, because every panel is promoted at the
+  same instant - so on a connection too slow to pull a chapter within the timeout,
+  all ~130 were declared stalled together, all aborted mid-download, and all
+  restarted. Measured on a 40-panel chapter at 20s a panel: 40 aborted at once,
+  160 requests where 40 would do, every panel out of retries by t+50s, nothing
+  loaded. A slow chapter turned into a broken one, which is worse than the fault
+  it was added for. Time cannot tell "stalled" from "slow" when everything is
+  slow; the number of panels still outstanding can. A stalled panel is only
+  interrupted once few others are left, at most two per pass. A request that
+  failed outright is still retried immediately - it is holding nothing open.
+- Two smaller faults in the same retry, both from the placeholder used to cancel a
+  stalled request. It loads instantly, so it consumed the one-shot listener that
+  releases the height pin - unpinning the box mid-retry and letting a 1x1 image
+  render full width, the exact shift the pin exists to prevent - and, with
+  `reserve=on`, the one-shot listener that clears reserved space, dropping a panel
+  that still had no image to zero height for good.
 - Ask again for a panel that never arrived. A chapter opens by requesting all ~130
   of its panels at once, at high priority, and a CDN under that burst will
   occasionally stall or drop one. Nothing retried it - a browser does not

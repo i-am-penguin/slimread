@@ -514,9 +514,19 @@
         // No dimensions to go on. Hold a plausible panel's worth of space until the
         // real one arrives - including if it fails, or the gap never closes.
         img.classList.add('slimread-unsized');
-        function settled() { img.classList.remove('slimread-unsized'); }
-        img.addEventListener('load', settled, { once: true });
-        img.addEventListener('error', settled, { once: true });
+
+        // Not once-only, and it ignores the placeholder. A retry parks the panel on
+        // the 1x1 placeholder to cancel the stalled request, and that loads
+        // instantly - so a once-only listener would be spent on it, stripping the
+        // reserved space from a panel that still has no image and dropping it to
+        // zero height for good. Firing repeatedly is harmless; removing a class that
+        // is already gone costs nothing.
+        function settled() {
+            if (img.getAttribute('src') === TRANSPARENT) return;
+            img.classList.remove('slimread-unsized');
+        }
+        img.addEventListener('load', settled);
+        img.addEventListener('error', settled);
     }
 
     function promote(img) {
@@ -568,6 +578,29 @@
     var PANEL_RETRY_MS = 4000;    // pause before asking again after an outright fail
     var PANEL_TRIES = 3;
 
+    /* The two limits that keep this from becoming worse than what it fixes.
+
+       Every panel is promoted in the same instant, so every panel's clock starts
+       together. On a connection that simply cannot pull a chapter within
+       PANEL_STALL_MS, the naive reading is that all ~130 have stalled at once - and
+       the "fix" is then to abort all ~130 in-flight downloads, throw away every byte
+       received so far, and start again. Measured on a 40-panel chapter at 20s per
+       panel: 40 aborted together, 160 requests where 40 would do, every panel out of
+       retries by t+50s, nothing loaded. A slow chapter turned into a broken one.
+
+       Time alone cannot tell "stalled" from "slow", because when everything is slow
+       both look identical. What separates them is how many panels are still
+       outstanding. One panel unresolved while the rest have arrived is stuck. A
+       hundred unresolved means the connection is busy and the answer is to wait -
+       which is also the honest answer, since aborting does not create bandwidth.
+
+       A failed request is different and is retried regardless of how busy things
+       are: it finished, it is holding nothing open, and asking again costs one
+       request. The per-pass cap covers the case where the server is refusing
+       everything at once. */
+    var PANEL_QUIET = 3;          // retry a stalled panel only once this few are left
+    var PANEL_BURST = 2;          // and never more than this many in one pass
+
     /* Ask for a panel again.
 
        Two steps, and the gap between them is the whole point. Simply re-assigning
@@ -588,6 +621,17 @@
         // would end by declaring the panel fixed and leaving the placeholder up.
         img.__slimreadRetrying = true;
 
+        // Drop the release listener left behind by an earlier retry. It is still
+        // waiting for a load that never came, and the placeholder assigned below
+        // loads instantly - so it would fire now, unpinning the box in the middle of
+        // this retry and letting the 1x1 render full width. Exactly the shift the
+        // pin exists to stop, arriving by way of the pin's own cleanup.
+        if (img.__slimreadRelease) {
+            img.removeEventListener('load', img.__slimreadRelease);
+            img.removeEventListener('error', img.__slimreadRelease);
+            img.__slimreadRelease = null;
+        }
+
         // Hold the box exactly the size it already is across the swap. The
         // placeholder is 1x1, and with the full-width rule on panels that renders
         // as a square the width of the screen - so a collapsed panel would balloon
@@ -600,13 +644,23 @@
         img.setAttribute('src', TRANSPARENT);
         setTimeout(function () {
             img.__slimreadRetrying = false;
-            img.setAttribute('src', real);
+
             // Let the panel size itself again once the retry has resolved either
             // way. Left pinned, a panel that did arrive would be stuck at whatever
-            // height it had while it was still missing.
-            function release() { img.style.removeProperty('height'); }
+            // height it had while it was still missing - which for a blank panel is
+            // zero, so it would load and stay invisible.
+            //
+            // Attached before the src is set, not after: a panel served from cache
+            // can finish loading before the next statement runs.
+            function release() {
+                img.__slimreadRelease = null;
+                img.style.removeProperty('height');
+            }
+            img.__slimreadRelease = release;
             img.addEventListener('load', release, { once: true });
             img.addEventListener('error', release, { once: true });
+
+            img.setAttribute('src', real);
         }, 60);
     }
 
@@ -618,11 +672,17 @@
             var imgs = (IS.article || document).getElementsByTagName('img');
             var now = Date.now();
 
+            // First pass: settle what has arrived, and count what is still out.
+            // The count is what tells a stuck panel from a busy connection, so it
+            // has to be taken across the whole page before anything is retried.
+            var outstanding = 0;
+            var candidates = [];
+
             for (var i = 0; i < imgs.length; i++) {
                 var img = imgs[i];
                 var asked = img.__slimreadAsked;
                 if (!asked) continue;                       // never promoted, or settled
-                if (img.__slimreadRetrying) continue;       // mid-retry, see retryPanel
+                if (img.__slimreadRetrying) { outstanding++; continue; }
 
                 // Arrived. The src check matters: the placeholder is a valid 1x1
                 // image, so `complete` and a non-zero width are both true of a panel
@@ -634,22 +694,34 @@
                 }
 
                 var failed  = img.complete && !img.naturalWidth;
+                if (!failed) outstanding++;                 // still holding a request open
+
                 var stalled = !img.complete && now - asked > PANEL_STALL_MS;
                 if (!failed && !stalled) continue;
                 if (failed && now - asked < PANEL_RETRY_MS) continue;
 
-                var tries = img.__slimreadTries || 0;
-                if (tries >= PANEL_TRIES) {
+                if ((img.__slimreadTries || 0) >= PANEL_TRIES) {
                     img.__slimreadAsked = 0;                // give up quietly
                     continue;
                 }
+                if (!lazyURL(img)) { img.__slimreadAsked = 0; continue; }
 
-                var real = lazyURL(img);
-                if (!real) { img.__slimreadAsked = 0; continue; }
+                candidates.push({ img: img, failed: failed });
+            }
 
-                img.__slimreadTries = tries + 1;
-                img.__slimreadAsked = now;
-                retryPanel(img, real);
+            // Second pass: a failed request costs nothing to repeat, so those go
+            // regardless. A stalled one is only worth interrupting once the page has
+            // gone quiet - otherwise this is aborting downloads that were going to
+            // finish, which is how a slow chapter becomes a broken one.
+            var sent = 0;
+            for (var j = 0; j < candidates.length && sent < PANEL_BURST; j++) {
+                var c = candidates[j];
+                if (!c.failed && outstanding > PANEL_QUIET) continue;
+
+                c.img.__slimreadTries = (c.img.__slimreadTries || 0) + 1;
+                c.img.__slimreadAsked = now;
+                retryPanel(c.img, lazyURL(c.img));
+                sent++;
             }
         }, 3000);
     }
