@@ -533,7 +533,125 @@
         try { img.fetchPriority = 'high'; } catch (e) {}
         img.setAttribute('fetchpriority', 'high');
 
+        // When it was asked for, so the watchdog below can tell a panel that is
+        // still coming from one that is never going to.
+        img.__slimreadAsked = Date.now();
+
         if (img.getAttribute('src') !== real) img.setAttribute('src', real);
+    }
+
+    /* Panels that were asked for and never arrived.
+
+       A chapter opens by requesting every one of its ~130 panels at once, all at
+       high priority - see the note above LOAD_MARGIN for why the buffer does not
+       actually stagger them - and a CDN under that burst will sometimes stall or
+       drop one. Nothing ever asked again. A browser does not re-request an image on
+       its own, and neither did this file, so one unlucky panel stayed blank for as
+       long as the reader stayed on the page. Reloading did not help either, because
+       a reload re-fires the same burst that dropped it in the first place. Reported
+       as a five-minute gap in the middle of a chapter.
+
+       Both failure shapes need catching, and they look different in the DOM:
+
+         complete && naturalWidth === 0   the request finished and there is no
+                                          image - a 404, a 5xx, a refused connection
+         !complete && asked long ago      the request is still open and is not
+                                          coming back. This is the one that produced
+                                          the five-minute gap, and no error event
+                                          ever fires for it, so only a clock finds it
+
+       One timer for the page rather than a listener per panel, and the retry is a
+       plain re-request of the same URL: the aim is to ask again, not to defeat a
+       cache that may since have warmed. Bounded, so a panel that is genuinely gone
+       stops costing anything. */
+    var PANEL_STALL_MS = 12000;   // still open this long after being asked for
+    var PANEL_RETRY_MS = 4000;    // pause before asking again after an outright fail
+    var PANEL_TRIES = 3;
+
+    /* Ask for a panel again.
+
+       Two steps, and the gap between them is the whole point. Simply re-assigning
+       the same URL does not produce a new request while the old one is still open:
+       the browser coalesces the two, so the retry attaches to the very stall it was
+       meant to escape. Measured - three retries, panel still blank.
+
+       Pointing the element at the placeholder first cancels whatever is in flight.
+       Only once that has been processed, on a later task, is the real URL a genuinely
+       new request. The URL itself is left alone throughout: a cache-busting parameter
+       would force the issue, but image URLs are often signed, and an extra parameter
+       on a signed URL turns a slow panel into a permanently forbidden one. */
+    function retryPanel(img, real) {
+        // The placeholder is a real 1x1 image and it loads instantly, so for the
+        // moment it is in place the panel looks - to anything checking `complete`
+        // and `naturalWidth` - exactly like a panel that has just arrived. The flag
+        // holds the watchdog off until the real URL is back in place, or a retry
+        // would end by declaring the panel fixed and leaving the placeholder up.
+        img.__slimreadRetrying = true;
+
+        // Hold the box exactly the size it already is across the swap. The
+        // placeholder is 1x1, and with the full-width rule on panels that renders
+        // as a square the width of the screen - so a collapsed panel would balloon
+        // to ~390px mid-retry and shove everything below it down while the reader
+        // is looking at it. setProperty with 'important' because the stylesheet's
+        // `height: auto !important` outranks a plain inline style.
+        var box = img.getBoundingClientRect().height;
+        img.style.setProperty('height', box + 'px', 'important');
+
+        img.setAttribute('src', TRANSPARENT);
+        setTimeout(function () {
+            img.__slimreadRetrying = false;
+            img.setAttribute('src', real);
+            // Let the panel size itself again once the retry has resolved either
+            // way. Left pinned, a panel that did arrive would be stuck at whatever
+            // height it had while it was still missing.
+            function release() { img.style.removeProperty('height'); }
+            img.addEventListener('load', release, { once: true });
+            img.addEventListener('error', release, { once: true });
+        }, 60);
+    }
+
+    var panelTimer = null;
+
+    function startPanelWatchdog() {
+        if (panelTimer) return;
+        panelTimer = setInterval(function () {
+            var imgs = (IS.article || document).getElementsByTagName('img');
+            var now = Date.now();
+
+            for (var i = 0; i < imgs.length; i++) {
+                var img = imgs[i];
+                var asked = img.__slimreadAsked;
+                if (!asked) continue;                       // never promoted, or settled
+                if (img.__slimreadRetrying) continue;       // mid-retry, see retryPanel
+
+                // Arrived. The src check matters: the placeholder is a valid 1x1
+                // image, so `complete` and a non-zero width are both true of a panel
+                // showing nothing at all.
+                if (img.complete && img.naturalWidth > 0 &&
+                    img.getAttribute('src') !== TRANSPARENT) {
+                    img.__slimreadAsked = 0;
+                    continue;
+                }
+
+                var failed  = img.complete && !img.naturalWidth;
+                var stalled = !img.complete && now - asked > PANEL_STALL_MS;
+                if (!failed && !stalled) continue;
+                if (failed && now - asked < PANEL_RETRY_MS) continue;
+
+                var tries = img.__slimreadTries || 0;
+                if (tries >= PANEL_TRIES) {
+                    img.__slimreadAsked = 0;                // give up quietly
+                    continue;
+                }
+
+                var real = lazyURL(img);
+                if (!real) { img.__slimreadAsked = 0; continue; }
+
+                img.__slimreadTries = tries + 1;
+                img.__slimreadAsked = now;
+                retryPanel(img, real);
+            }
+        }, 3000);
     }
 
     /* Reaching a panel also starts the ones after it, so the loaded region rolls
@@ -1323,6 +1441,7 @@
         preconnectImageHost();
         observeImages();
         startAppendWatchdog();
+        startPanelWatchdog();
         restorePosition();
         reportPosition(true);      // record the chapter immediately on arrival
 

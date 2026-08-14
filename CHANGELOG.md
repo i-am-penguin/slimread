@@ -7,6 +7,21 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Ask again for a panel that never arrived. A chapter opens by requesting all ~130
+  of its panels at once, at high priority, and a CDN under that burst will
+  occasionally stall or drop one. Nothing retried it - a browser does not
+  re-request an image on its own, and neither did this file - so an unlucky panel
+  stayed blank for as long as you stayed on the page, and reloading did not help
+  because a reload re-fires the same burst. A watchdog now catches both shapes: a
+  request that finished with no image, and one that is still open long after it
+  should have arrived, which fires no error event and can only be found by a clock.
+  Three tries, then it stops.
+  Retrying is not just re-assigning the URL: while the first request is still open
+  the browser folds the second into it, so the retry attaches to the very stall it
+  was meant to escape. The panel is parked on the placeholder first to cancel the
+  old request, and the URL itself is never altered - a cache-busting parameter
+  would force the issue but would break a signed image URL, turning a slow panel
+  into a permanently forbidden one.
 
 ## v1.26 - 2026-08-12
 - Fetch tweaks/ in the background, so the newest copy is already stored when the
