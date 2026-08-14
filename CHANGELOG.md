@@ -7,6 +7,21 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Retry a panel that the panels after it have overtaken. The quiet check below
+  counted the stalled panels themselves, and a stalled panel never completes, so
+  it counted against itself forever: five simultaneous stalls held the count above
+  the threshold and none of them was ever retried - 0 of 5 recovered, the blank
+  gap intact. What identifies a stuck panel is not how many are outstanding but
+  whether the ones AFTER it have arrived, since panels are requested in order. All
+  5 now recover in about 5 seconds, and a slow connection still triggers no retries
+  at all.
+- Two more in the same retry. `release` was registered on both `load` and `error`
+  with `{once}`, which removes only the event that fired - so an `error` left the
+  `load` listener attached and unreachable, to fire later on the next retry's
+  placeholder and unpin the box mid-swap. It now removes both itself. And a panel
+  that has already been retried no longer holds the chapter boundary: retrying
+  puts it back to `complete === false`, which had `tailResolved()` waiting out its
+  full escape timer at the end of every chapter carrying a broken panel.
 - Only retry a panel once the page has gone quiet. The retry added below started
   every panel's clock at the same instant, because every panel is promoted at the
   same instant - so on a connection too slow to pull a chapter within the timeout,

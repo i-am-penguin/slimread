@@ -652,13 +652,22 @@
             //
             // Attached before the src is set, not after: a panel served from cache
             // can finish loading before the next statement runs.
+            // Removes BOTH listeners itself rather than relying on {once}. With
+            // {once} only the event that actually fired is taken off: an `error`
+            // leaves the `load` listener attached, and since this handle is cleared
+            // at the same moment, the next retry's cleanup cannot find it either.
+            // That orphan then fires on the next retry's placeholder and unpins the
+            // box mid-swap - the shift the pin exists to prevent, reintroduced by
+            // the pin's own cleanup.
             function release() {
+                img.removeEventListener('load', release);
+                img.removeEventListener('error', release);
                 img.__slimreadRelease = null;
                 img.style.removeProperty('height');
             }
             img.__slimreadRelease = release;
-            img.addEventListener('load', release, { once: true });
-            img.addEventListener('error', release, { once: true });
+            img.addEventListener('load', release);
+            img.addEventListener('error', release);
 
             img.setAttribute('src', real);
         }, 60);
@@ -672,16 +681,30 @@
             var imgs = (IS.article || document).getElementsByTagName('img');
             var now = Date.now();
 
-            // First pass: settle what has arrived, and count what is still out.
-            // The count is what tells a stuck panel from a busy connection, so it
-            // has to be taken across the whole page before anything is retried.
+            // Walk backwards, so that by the time each panel is judged the ones
+            // AFTER it have already been counted. That ordering is the point.
+            //
+            // Panels are requested in document order, so a panel still missing while
+            // the ones after it have arrived is being left behind - that is stuck,
+            // whatever the connection is doing. A panel missing while everything
+            // after it is also missing is simply next in the queue. The earlier
+            // version counted only how many were outstanding in total, which cannot
+            // express this: a stalled panel never completes, so it counts against
+            // itself forever, and four simultaneous stalls held the count above the
+            // threshold and stopped any of them from ever being retried.
             var outstanding = 0;
+            var arrivedAfter = 0;
             var candidates = [];
 
-            for (var i = 0; i < imgs.length; i++) {
+            for (var i = imgs.length - 1; i >= 0; i--) {
                 var img = imgs[i];
                 var asked = img.__slimreadAsked;
-                if (!asked) continue;                       // never promoted, or settled
+                if (!asked) {
+                    // Settled earlier, or never promoted. Only a panel actually
+                    // holding artwork counts as having arrived.
+                    if (img.__slimreadDone && img.naturalWidth > 1) arrivedAfter++;
+                    continue;
+                }
                 if (img.__slimreadRetrying) { outstanding++; continue; }
 
                 // Arrived. The src check matters: the placeholder is a valid 1x1
@@ -690,6 +713,7 @@
                 if (img.complete && img.naturalWidth > 0 &&
                     img.getAttribute('src') !== TRANSPARENT) {
                     img.__slimreadAsked = 0;
+                    arrivedAfter++;
                     continue;
                 }
 
@@ -706,7 +730,7 @@
                 }
                 if (!lazyURL(img)) { img.__slimreadAsked = 0; continue; }
 
-                candidates.push({ img: img, failed: failed });
+                candidates.push({ img: img, failed: failed, leftBehind: arrivedAfter >= 3 });
             }
 
             // Second pass: a failed request costs nothing to repeat, so those go
@@ -716,7 +740,12 @@
             var sent = 0;
             for (var j = 0; j < candidates.length && sent < PANEL_BURST; j++) {
                 var c = candidates[j];
-                if (!c.failed && outstanding > PANEL_QUIET) continue;
+                // A stalled panel is worth interrupting when it has been left behind
+                // by the panels after it, or when the page has gone quiet enough that
+                // there is nothing left to interrupt. The second covers a panel at
+                // the very end of a chapter, which has nothing after it to be left
+                // behind by.
+                if (!c.failed && !c.leftBehind && outstanding > PANEL_QUIET) continue;
 
                 c.img.__slimreadTries = (c.img.__slimreadTries || 0) + 1;
                 c.img.__slimreadAsked = now;
@@ -1227,6 +1256,12 @@
         for (var i = imgs.length - 1; i >= 0 && checked < 3; i--) {
             var img = imgs[i];
             if (!img.__slimreadDone) return false;   // never even asked to load
+            // A panel that has already needed a retry is not worth waiting for
+            // again. Retrying puts it back to `complete === false`, so without this
+            // a broken panel at the end of a chapter holds the next chapter for the
+            // whole retry cycle - which is the dead end the "a failed panel counts
+            // as resolved" rule above was written to avoid, arriving by another road.
+            if (img.__slimreadTries) { checked++; continue; }
             if (!img.complete) return false;         // asked, still in flight
             checked++;
         }
