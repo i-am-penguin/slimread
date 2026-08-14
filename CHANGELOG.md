@@ -7,6 +7,20 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Wait for the page before giving up on the reading position. The position was
+  always saved correctly - it was the restore that quit. It waits for the page to
+  grow tall enough to hold the offset, and that wait was a flat 25 attempts at
+  150ms: 3.75 seconds, whatever the page was doing at the end of them. A chapter is
+  ~130 panels that only take up space as they load, so on a slow connection the
+  page is nowhere near tall enough by then, and the restore abandoned the reader at
+  the top in silence. Worse the deeper into a chapter they were, a larger offset
+  needing a taller page - which reads as remembering less and less accurately the
+  further you read. Present since the feature was added in 1.21, not new.
+  A clock cannot decide this, because the right amount of time is however long the
+  panels take. It now waits while the page is still growing and stops when it is
+  not, and if the chapter really is shorter than the offset it goes as far as there
+  is rather than to the top. Measured on a slow connection, 23400px deep: was
+  abandoned at 0, now restored exactly.
 - Retry a panel that the panels after it have overtaken. The quiet check below
   counted the stalled panels themselves, and a stalled panel never completes, so
   it counted against itself forever: five simultaneous stalls held the count above

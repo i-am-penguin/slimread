@@ -1411,17 +1411,50 @@
         window.addEventListener('touchstart', cancel, { passive: true, once: true });
         window.addEventListener('wheel', cancel, { passive: true, once: true });
 
-        // Wait for the page to be tall enough to hold that offset, then scroll ONCE
-        // and stop. Scrolling repeatedly would keep dragging the page back while it
-        // is still growing - the reader tugging against itself.
-        var tries = 0;
+        /* Wait for the page to be tall enough to hold that offset, then scroll ONCE
+           and stop. Scrolling repeatedly would keep dragging the page back while it
+           is still growing - the reader tugging against itself.
+
+           How long to wait was a flat 25 attempts at 150ms: 3.75 seconds, whatever
+           the page was doing at the end of them. A chapter is ~130 panels and they
+           only take up space as they load, so on a slow connection the page is
+           nowhere near tall enough by then - and the restore gave up in silence and
+           left the reader at the top. Worse the further into a chapter they were,
+           since a larger offset needs a taller page, which reads exactly as "it
+           remembers, but less and less accurately the more I read".
+
+           Waiting on a clock alone cannot work, because the right amount of time is
+           however long the panels take. Wait on the page instead: while it is still
+           growing it is still loading, so keep waiting; once it has stopped growing
+           it is as tall as it is going to get, and waiting longer achieves nothing.
+           The attempt cap is only a backstop against a page that never settles. */
+        var STILL_GROWING = 30;    // ticks of no growth before calling it settled
+        var GIVE_UP = 100;         // hard stop, 15s - long past any reasonable load
+
+        var tries = 0, seen = 0, flat = 0;
+
         (function settle() {
             if (cancelled) return;
-            if (document.documentElement.scrollHeight > want + window.innerHeight) {
+
+            var height = document.documentElement.scrollHeight;
+            if (height > want + window.innerHeight) {
                 window.scrollTo(0, want);
                 return;
             }
-            if (++tries < 25) setTimeout(settle, 150);
+
+            if (height > seen) { seen = height; flat = 0; } else flat++;
+
+            if (flat < STILL_GROWING && ++tries < GIVE_UP) {
+                setTimeout(settle, 150);
+                return;
+            }
+
+            // Settled and still too short: the chapter really is smaller than the
+            // offset remembered for it. Go as far as there is rather than abandoning
+            // the reader at the top - the end of a shorter chapter is far closer to
+            // where they were than the beginning of it.
+            var max = document.documentElement.scrollHeight - window.innerHeight;
+            if (max > window.innerHeight) window.scrollTo(0, max);
         })();
     }
 
