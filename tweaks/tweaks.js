@@ -806,12 +806,21 @@
                 candidates.push({ img: img, failed: failed, leftBehind: arrivedAfter >= 3 });
             }
 
-            // Second pass: a failed request costs nothing to repeat, so those go
-            // regardless. A stalled one is only worth interrupting once the page has
-            // gone quiet - otherwise this is aborting downloads that were going to
-            // finish, which is how a slow chapter becomes a broken one.
             offerReload(imgs);
 
+            // The scan above runs backwards, so the candidates came out in reverse
+            // document order - and taking the first PANEL_BURST of those spends the
+            // whole budget on the panels furthest down the page. The reader is
+            // working downwards from the top, so those are the ones they will not
+            // reach for the longest, while the gap in front of them waits its turn.
+            // Measured before this line existed: with every panel failing, the
+            // retries went 79, 78, 77, 76... from the very end backwards.
+            candidates.reverse();
+
+            // A failed request costs nothing to repeat, so those go regardless. A
+            // stalled one is only worth interrupting once the page has gone quiet -
+            // otherwise this is aborting downloads that were going to finish, which
+            // is how a slow chapter becomes a broken one.
             var sent = 0;
             for (var j = 0; j < candidates.length && sent < PANEL_BURST; j++) {
                 var c = candidates[j];
@@ -1640,7 +1649,24 @@
     // the URL current and decides when to append the next chapter, neither of
     // which is urgent enough to care about a paused frame or two.
     var scrollQueued = false;
+
+    /* One more save once the scrolling stops.
+
+       reportPosition() is rate-limited to once a second, and it only ever runs from
+       a scroll event - so the last second of movement before you come to rest is
+       never recorded. Stop reading mid-flick and the remembered spot is wherever you
+       were up to a second earlier: measured at 4500px adrift after a fast scroll.
+       Backgrounding the app hides this, since that forces a save, but a reload or a
+       termination that skips pagehide does not.
+
+       A trailing save costs one localStorage write per stretch of reading, at the
+       only moment the exact position is worth anything. */
+    var restTimer = null;
+
     function onScroll() {
+        clearTimeout(restTimer);
+        restTimer = setTimeout(function () { reportPosition(true); }, 1200);
+
         if (scrollQueued) return;
         scrollQueued = true;
         requestAnimationFrame(function () {

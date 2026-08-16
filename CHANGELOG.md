@@ -7,6 +7,17 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Retry the panels the reader is looking at first. The watchdog scans backwards -
+  it has to, to judge each panel against the ones after it - and the candidates
+  came out of that scan in reverse, so the two retries allowed per pass were spent
+  on the panels furthest down the page. With everything failing, the retries went
+  79, 78, 77, 76 from the very end backwards, while the gap in front of the reader
+  waited its turn. They now go in reading order, 0, 1, 2, 3.
+- Save the position once scrolling stops. It is written at most once a second and
+  only from a scroll event, so the last second of movement before coming to rest
+  was never recorded - stop mid-flick and the remembered spot was up to a second
+  behind, measured at 4500px adrift. Backgrounding the app hid this by forcing a
+  save; a reload did not. Now exact.
 - Offer a way back when the panels are beyond retrying. Retrying asks for the same
   URL again, which recovers a panel that was dropped and does nothing for one whose
   URL has gone stale - and image URLs on these services are typically signed and
