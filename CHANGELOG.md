@@ -7,6 +7,18 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Offer a way back when the panels are beyond retrying. Retrying asks for the same
+  URL again, which recovers a panel that was dropped and does nothing for one whose
+  URL has gone stale - and image URLs on these services are typically signed and
+  time-limited, so a page left open overnight is holding addresses that have since
+  expired. Every panel not already loaded then fails outright, retrying cannot help,
+  and giving up was silent and permanent: a chapter of broken panels with no way
+  back. Once several panels are past help the reader is told, and offered the one
+  thing that fixes it. Nothing reloads on its own - that would throw away the
+  stitched chapters and the reading position unasked.
+- Give failed panels another go when the app comes back to the foreground. A panel
+  written off under whatever the connection was doing yesterday should not stay
+  broken because of it.
 - Wait for the page before giving up on the reading position. The position was
   always saved correctly - it was the restore that quit. It waits for the page to
   grow tall enough to hold the offset, and that wait was a flat 25 attempts at

@@ -673,6 +673,78 @@
         }, 60);
     }
 
+    /* When retrying cannot be the answer.
+
+       Retrying asks for the same URL again, which fixes a panel that was dropped
+       and does nothing at all for a panel whose URL has gone stale. Image URLs on
+       these services are typically signed and time-limited, so a page left open
+       long enough - overnight, in the background - is holding a list of addresses
+       that have since expired. Every panel not already loaded then fails outright,
+       and no number of retries changes that: the page has to be fetched again to
+       get fresh ones.
+
+       That leaves the reader with nothing to do, which is what happened - a chapter
+       of broken panels and no way back, because giving up was silent and permanent.
+       So say what happened and offer the one thing that helps. Tapping is the
+       reader's, as ever; nothing reloads on its own, which would throw away the
+       stitched chapters and the reading position without being asked. */
+    var PANELS_STALE = 3;         // this many beyond help means the page, not the panels
+
+    function offerReload(imgs) {
+        if (document.getElementById('slimread-reload')) return;
+
+        var lost = 0;
+        for (var i = 0; i < imgs.length; i++) if (imgs[i].__slimreadGaveUp) lost++;
+        if (lost < PANELS_STALE) return;
+
+        trail('panels  ' + lost + ' gave up  (offered a reload)');
+
+        var bar = document.createElement('div');
+        bar.id = 'slimread-reload';
+        bar.className = 'slimread-reload';
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slimread-reload-btn';
+        btn.textContent = 'Panels failed - reload chapter';
+        btn.addEventListener('click', function () {
+            btn.disabled = true;
+            btn.textContent = 'Reloading...';
+            reportPosition(true);      // come back to the same place
+            location.reload();
+        });
+
+        bar.appendChild(btn);
+        (document.body || root).appendChild(bar);
+    }
+
+    /* Coming back to the app after a while, give the failed panels another go
+       before concluding anything. The connection that dropped them may be long
+       gone - a different network, a day later - and a panel written off under the
+       old one deserves a fresh set of attempts rather than staying broken because
+       of how things were when the phone was last out of a pocket.
+
+       If they fail again, offerReload() puts the offer back. */
+    function retryFailedOnResume() {
+        if (!IS.article) return;
+
+        var imgs = IS.article.getElementsByTagName('img');
+        var revived = 0;
+        for (var i = 0; i < imgs.length; i++) {
+            var img = imgs[i];
+            if (!img.__slimreadGaveUp) continue;
+            if (img.complete && img.naturalWidth > 1) continue;   // arrived after all
+            img.__slimreadGaveUp = false;
+            img.__slimreadTries = 0;
+            img.__slimreadAsked = Date.now() - PANEL_RETRY_MS;    // eligible next pass
+            revived++;
+        }
+        if (!revived) return;
+
+        var bar = document.getElementById('slimread-reload');
+        if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+    }
+
     var panelTimer = null;
 
     function startPanelWatchdog() {
@@ -725,7 +797,8 @@
                 if (failed && now - asked < PANEL_RETRY_MS) continue;
 
                 if ((img.__slimreadTries || 0) >= PANEL_TRIES) {
-                    img.__slimreadAsked = 0;                // give up quietly
+                    img.__slimreadAsked = 0;
+                    img.__slimreadGaveUp = true;            // counted by offerReload()
                     continue;
                 }
                 if (!lazyURL(img)) { img.__slimreadAsked = 0; continue; }
@@ -737,6 +810,8 @@
             // regardless. A stalled one is only worth interrupting once the page has
             // gone quiet - otherwise this is aborting downloads that were going to
             // finish, which is how a slow chapter becomes a broken one.
+            offerReload(imgs);
+
             var sent = 0;
             for (var j = 0; j < candidates.length && sent < PANEL_BURST; j++) {
                 var c = candidates[j];
@@ -1594,6 +1669,10 @@
         // pagehide and visibilitychange are the two that reliably fire on iOS.
         window.addEventListener('pagehide', function () { reportPosition(true); });
         document.addEventListener('visibilitychange', function () {
+            // Back from the background: panels written off under whatever the
+            // connection was doing before deserve another go. See
+            // retryFailedOnResume().
+            if (document.visibilityState === 'visible') retryFailedOnResume();
             if (document.visibilityState === 'hidden') reportPosition(true);
         });
     }

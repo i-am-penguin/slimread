@@ -215,6 +215,35 @@ img {
     font: 400 11px/1.45 -apple-system, system-ui, sans-serif !important;
 }
 
+/* Offered when several panels are beyond retrying - see offerReload() in
+   tweaks.js. Pinned rather than inline, because the failures are somewhere up the
+   page and the reader needs the way out wherever they happen to be. Above the home
+   indicator, clear of the top-left corner that opens the control bar. */
+.slimread-reload {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 2147483646 !important;
+    text-align: center !important;
+    pointer-events: none !important;
+}
+
+.slimread-reload-btn {
+    pointer-events: auto !important;
+    padding: 13px 22px !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: #000 !important;
+    border: 0 !important;
+    border-radius: 22px !important;
+    font: 600 13px/1 -apple-system, system-ui, sans-serif !important;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5) !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.slimread-reload-btn:disabled { opacity: 0.55 !important; }
+
 /* The chapter trail, shown by ?slimread=trail. Covers the page deliberately - it
    is being read, not glanced at - and dismisses on tap. */
 .slimread-trail {
