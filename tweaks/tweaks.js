@@ -693,29 +693,61 @@
     function offerReload(imgs) {
         if (document.getElementById('slimread-reload')) return;
 
-        var lost = 0;
-        for (var i = 0; i < imgs.length; i++) if (imgs[i].__slimreadGaveUp) lost++;
-        if (lost < PANELS_STALE) return;
+        var lost = 0, first = null;
+        for (var i = 0; i < imgs.length; i++) {
+            if (!imgs[i].__slimreadGaveUp) continue;
+            lost++;
+            if (!first) first = imgs[i];
+        }
+        if (lost < PANELS_STALE || !first) return;
 
         trail('panels  ' + lost + ' gave up  (offered a reload)');
 
-        var bar = document.createElement('div');
-        bar.id = 'slimread-reload';
-        bar.className = 'slimread-reload';
+        // In the gap, not floating over the artwork. This was a bar pinned to the
+        // bottom of the screen, which put it in the reader's way for the whole time
+        // they were still reading the panels above the fault - offering a fix for a
+        // problem they had not reached yet, on top of the page they were reading.
+        // Placed at the first panel that gave up, it is invisible until they arrive
+        // at the gap, and then it is exactly where the missing panel should be.
+        var block = document.createElement('div');
+        block.id = 'slimread-reload';
+        block.className = 'slimread-reload';
+
+        var note = document.createElement('div');
+        note.className = 'slimread-reload-note';
+        note.textContent = lost === 1 ? 'This panel did not load.'
+                                      : lost + ' panels did not load.';
 
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'slimread-reload-btn';
-        btn.textContent = 'Panels failed - reload chapter';
+        btn.textContent = 'Reload chapter';
         btn.addEventListener('click', function () {
             btn.disabled = true;
             btn.textContent = 'Reloading...';
-            reportPosition(true);      // come back to the same place
-            location.reload();
+
+            // Save where they are, then go to that chapter by name.
+            //
+            // location.reload() was reloading whatever the address bar happened to
+            // hold, which on a stitched page is maintained by updateChapterURL() as
+            // the reader crosses boundaries - one more thing that has to be right
+            // for the reader to end up where they were. Naming the chapter removes
+            // the dependency: this is the same chapter reportPosition() just saved
+            // the offset against, so the two cannot disagree.
+            var id = null;
+            if (IS.blocks.length) { var c = chapterUnderTop(); if (c) id = c.id; }
+            if (!id) id = IS.headId || currentEpisodeId();
+
+            reportPosition(true);
+            if (id) location.href = '/episode/' + id;
+            else location.reload();
         });
 
-        bar.appendChild(btn);
-        (document.body || root).appendChild(bar);
+        block.appendChild(note);
+        block.appendChild(btn);
+
+        if (first.parentNode) first.parentNode.insertBefore(block, first.nextSibling);
+        else (document.body || root).appendChild(block);
     }
 
     /* Coming back to the app after a while, give the failed panels another go

@@ -220,17 +220,24 @@ img {
    page and the reader needs the way out wherever they happen to be. Above the home
    indicator, clear of the top-left corner that opens the control bar. */
 .slimread-reload {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important;
-    z-index: 2147483646 !important;
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 34px 20px !important;
+    margin: 0 !important;
+    background: #0d0d0d !important;
     text-align: center !important;
-    pointer-events: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.slimread-reload-note {
+    margin: 0 0 14px !important;
+    color: rgba(255, 255, 255, 0.55) !important;
+    font: 400 12px/1.4 -apple-system, system-ui, sans-serif !important;
 }
 
 .slimread-reload-btn {
-    pointer-events: auto !important;
     padding: 13px 22px !important;
     background: rgba(255, 255, 255, 0.94) !important;
     color: #000 !important;

@@ -7,6 +7,18 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Put the reload offer in the gap, not over the page. It was a bar pinned to the
+  bottom of the screen, so it sat in the reader's way for the whole time they were
+  still reading the panels above the fault - offering a fix for a problem they had
+  not reached yet, on top of the page they were reading. It now sits at the first
+  panel that failed: out of sight until they arrive at the gap, and then exactly
+  where the missing panel should be.
+- Name the chapter when reloading rather than reloading the address bar. The button
+  called location.reload(), which reloads whatever the URL happens to hold - on a
+  stitched page that is maintained as the reader crosses boundaries, so it is one
+  more thing that has to be right for them to land where they were. It now goes to
+  the same chapter reportPosition() just saved the offset against, so the two
+  cannot disagree.
 - Retry the panels the reader is looking at first. The watchdog scans backwards -
   it has to, to judge each panel against the ones after it - and the candidates
   came out of that scan in reverse, so the two retries allowed per pass were spent
