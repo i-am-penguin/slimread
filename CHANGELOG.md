@@ -7,6 +7,20 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Keep the append watchdog off the scroll path. It read scrollHeight every 700ms
+  regardless of what the reader was doing, and that read is a full reflow of a
+  70,000px page whenever panels are still arriving. It exists for when the
+  scrolling has STOPPED - a chapter ending near the bottom on arrival, and the fact
+  that being at the bottom produces no more scroll events - so while the page is
+  moving it has nothing to add. Nothing is lost by waiting: appending needs the end
+  to hold still for over a second anyway, so it could not have fired mid-glide.
+- Write the reading offset only when it counts. localStorage.setItem is
+  synchronous, so saving on the throttled scroll path put a storage write on the
+  main thread once a second while the reader was moving, for a value immediately
+  superseded. Coming to rest, leaving the page and backgrounding the app all still
+  force it, which covers every moment the exact number matters.
+  Together, over twenty seconds of reading: 256 forced layout reads before, 221
+  now, against 251 for the released build.
 - Stop doing work on every scroll event while the page is coasting. Everything in
   the scroll handler is throttled to one run per frame, and iOS suspends
   requestAnimationFrame during a momentum scroll - so the frame callback never

@@ -1469,6 +1469,16 @@
             if (!IS.active) return;
             if (IS.ended) { clearInterval(appendTimer); appendTimer = null; return; }
 
+            // This exists for when the scrolling has stopped - a chapter that ends
+            // near the bottom on arrival, and the fact that being AT the bottom
+            // produces no more scroll events. While the page is actually moving the
+            // scroll path is already calling maybeAppend, so this tick has nothing
+            // to add and costs a scrollHeight read, which is a full reflow of a
+            // 70,000px page whenever panels are still arriving. Nothing is lost by
+            // waiting: appending needs the end to hold still for END_DWELL_MS
+            // anyway, so it could not have fired mid-glide regardless.
+            if (Date.now() - lastScrollAt < 800) return;
+
             // Release a wedged in-progress flag. The fetches have their own
             // timeouts now, but this flag blocks every future append, so it is
             // worth guaranteeing it can never be stuck regardless of the cause.
@@ -1520,6 +1530,13 @@
                 window.webkit.messageHandlers.slimread.postMessage({ type: 'position', url: href });
             }
         } catch (e) { /* not running in the app - fine */ }
+
+        // Only when it counts. localStorage.setItem is synchronous, so writing the
+        // offset on the throttled scroll path put a storage write on the main
+        // thread once a second while the reader was moving - for a value that is
+        // immediately superseded. The forced calls cover every moment it is worth
+        // recording: coming to rest, leaving the page, backgrounding the app.
+        if (!force) return;
 
         // Offset measured from the top of the chapter you are in, so it still means
         // something when that chapter is reopened on its own.
