@@ -1136,17 +1136,37 @@
        Checks immediately as well as on scroll, since the reader may already be
        there, and unhooks itself after firing once. */
     function atBottom(fn) {
-        var fired = false;
-        function check() {
+        var fired = false, queued = false;
+
+        // Reading scrollHeight forces layout whenever panels are still arriving, and
+        // this listener is armed from the moment the stitch cap is reached until the
+        // reader actually gets to the bottom - a whole chapter of reading. Unthrottled
+        // that was a reflow on every scroll event, sixty to a hundred and twenty times
+        // a second, for the entire stretch.
+        //
+        // Throttled the same way as onScroll: one measurement per frame, and during a
+        // momentum scroll iOS suspends requestAnimationFrame, so `queued` stays true
+        // and each event costs one boolean check. The bottom is then noticed when the
+        // glide ends rather than during it, which no one can perceive - the button it
+        // reveals is for after you have stopped.
+        function measure() {
+            queued = false;
             if (fired) return;
             var d = document.documentElement;
             if (d.scrollHeight - (window.scrollY + window.innerHeight) > window.innerHeight * 0.33) return;
             fired = true;
-            window.removeEventListener('scroll', check);
+            window.removeEventListener('scroll', onScrollCheck);
             fn();
         }
-        window.addEventListener('scroll', check, { passive: true });
-        check();
+
+        function onScrollCheck() {
+            if (queued || fired) return;
+            queued = true;
+            requestAnimationFrame(measure);
+        }
+
+        window.addEventListener('scroll', onScrollCheck, { passive: true });
+        measure();
     }
 
     /* The way on, at the end of the page, where the scrolling stops.

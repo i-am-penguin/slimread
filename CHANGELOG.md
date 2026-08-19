@@ -7,6 +7,14 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Throttle the end-of-page check. atBottom() watched for the reader reaching the
+  bottom with a bare scroll listener that read scrollHeight - a forced layout -
+  on every event, with none of the per-frame throttling the main scroll handler
+  has. It is armed only between the stitch cap latching and the reader reaching
+  the end, which is about two screens of scrolling rather than a whole chapter,
+  so the exposure was smaller than it first looked; but an unthrottled reflow per
+  scroll event is never right. Now one measurement per frame, which during a
+  momentum scroll costs a boolean check per event.
 - Keep the append watchdog off the scroll path. It read scrollHeight every 700ms
   regardless of what the reader was doing, and that read is a full reflow of a
   70,000px page whenever panels are still arriving. It exists for when the
