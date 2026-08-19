@@ -546,6 +546,7 @@
         // When it was asked for, so the watchdog below can tell a panel that is
         // still coming from one that is never going to.
         img.__slimreadAsked = Date.now();
+        panelsPending = true;      // there is now something for the watchdog to watch
 
         if (img.getAttribute('src') !== real) img.setAttribute('src', real);
     }
@@ -690,15 +691,8 @@
        stitched chapters and the reading position without being asked. */
     var PANELS_STALE = 3;         // this many beyond help means the page, not the panels
 
-    function offerReload(imgs) {
+    function offerReload(lost, first) {
         if (document.getElementById('slimread-reload')) return;
-
-        var lost = 0, first = null;
-        for (var i = 0; i < imgs.length; i++) {
-            if (!imgs[i].__slimreadGaveUp) continue;
-            lost++;
-            if (!first) first = imgs[i];
-        }
         if (lost < PANELS_STALE || !first) return;
 
         trail('panels  ' + lost + ' gave up  (offered a reload)');
@@ -769,6 +763,7 @@
             img.__slimreadGaveUp = false;
             img.__slimreadTries = 0;
             img.__slimreadAsked = Date.now() - PANEL_RETRY_MS;    // eligible next pass
+            panelsPending = true;
             revived++;
         }
         if (!revived) return;
@@ -777,11 +772,23 @@
         if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
     }
 
+    // Set by promote() when a panel is asked for, cleared by the scan when nothing
+    // is outstanding. Lets the watchdog skip the walk entirely on a settled page.
+    var panelsPending = false;
+    var panelsLost = false;
+
     var panelTimer = null;
 
     function startPanelWatchdog() {
         if (panelTimer) return;
         panelTimer = setInterval(function () {
+            // Nothing was asked for and has not arrived, and nothing has been given
+            // up on: there is no work here and no reason to walk the page for it.
+            // promote() sets the first flag and the scan below sets the second, so
+            // this is exact rather than an estimate - and it is the state the reader
+            // is in for almost all of a chapter, once it has loaded.
+            if (!panelsPending && !panelsLost) return;
+
             var imgs = (IS.article || document).getElementsByTagName('img');
             var now = Date.now();
 
@@ -800,6 +807,12 @@
             var arrivedAfter = 0;
             var candidates = [];
 
+            // Counted here rather than in a second walk of the same images.
+            // Walking backwards means the LAST one seen is the first in reading
+            // order, which is where the offer belongs.
+            var stillPending = false;
+            var lost = 0, firstLost = null;
+
             for (var i = imgs.length - 1; i >= 0; i--) {
                 var img = imgs[i];
                 var asked = img.__slimreadAsked;
@@ -807,8 +820,10 @@
                     // Settled earlier, or never promoted. Only a panel actually
                     // holding artwork counts as having arrived.
                     if (img.__slimreadDone && img.naturalWidth > 1) arrivedAfter++;
+                    if (img.__slimreadGaveUp) { lost++; firstLost = img; }
                     continue;
                 }
+                stillPending = true;
                 if (img.__slimreadRetrying) { outstanding++; continue; }
 
                 // Arrived. The src check matters: the placeholder is a valid 1x1
@@ -838,7 +853,9 @@
                 candidates.push({ img: img, failed: failed, leftBehind: arrivedAfter >= 3 });
             }
 
-            offerReload(imgs);
+            panelsPending = stillPending;
+            panelsLost = lost > 0;
+            offerReload(lost, firstLost);
 
             // The scan above runs backwards, so the candidates came out in reverse
             // document order - and taking the first PANEL_BURST of those spends the
@@ -1486,8 +1503,13 @@
         if (!force && now - lastReport < 1000) return;
         lastReport = now;
 
-        var id = null;
-        if (IS.blocks.length) { var c = chapterUnderTop(); if (c) id = c.id; }
+        // One lookup, reused below. This was called twice - once for the id and
+        // again for the offset - and each call reads a bounding rect per stitched
+        // chapter, so on a page with images still arriving it forced layout twice
+        // for one answer, at up to once a second while scrolling.
+        var here = IS.blocks.length ? chapterUnderTop() : null;
+
+        var id = here ? here.id : null;
         if (!id) id = currentEpisodeId();
         if (!id) return;
 
@@ -1502,11 +1524,7 @@
         // Offset measured from the top of the chapter you are in, so it still means
         // something when that chapter is reopened on its own.
         try {
-            var base = 0;
-            if (IS.blocks.length) {
-                var b = chapterUnderTop();
-                if (b) base = b.anchor.getBoundingClientRect().top + window.scrollY;
-            }
+            var base = here ? here.anchor.getBoundingClientRect().top + window.scrollY : 0;
             var within = Math.max(0, Math.round(window.scrollY - base));
             localStorage.setItem(POS_KEY + id, String(within));
         } catch (e) {}
@@ -1693,11 +1711,33 @@
 
        A trailing save costs one localStorage write per stretch of reading, at the
        only moment the exact position is worth anything. */
+    var REST_MS = 1200;
     var restTimer = null;
+    var lastScrollAt = 0;
+
+    /* Fires once the scrolling has actually stopped, rescheduling itself if it has
+       not. One timer for the whole stretch of reading, rather than one per event. */
+    function onRest() {
+        var idle = Date.now() - lastScrollAt;
+        if (idle < REST_MS) { restTimer = setTimeout(onRest, REST_MS - idle); return; }
+        restTimer = null;
+        reportPosition(true);
+    }
 
     function onScroll() {
-        clearTimeout(restTimer);
-        restTimer = setTimeout(function () { reportPosition(true); }, 1200);
+        /* Everything below is throttled to one run per frame, and during a momentum
+           scroll iOS suspends requestAnimationFrame - so scrollQueued stays true,
+           the frame callback never runs, and the whole handler is meant to cost one
+           boolean check per event while the page glides.
+           This used to clear and re-arm a timeout here instead, above that early
+           return: a fresh closure and a timer churned on every scroll event, sixty
+           to a hundred and twenty times a second, at exactly the moment nothing else
+           was running. Reported as stuttering that appears when the scroll is
+           coasting rather than while the finger is down.
+           A timestamp costs no allocation and no timer work, and onRest() above
+           reschedules itself off it. */
+        lastScrollAt = Date.now();
+        if (!restTimer) restTimer = setTimeout(onRest, REST_MS);
 
         if (scrollQueued) return;
         scrollQueued = true;

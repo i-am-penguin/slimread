@@ -7,6 +7,24 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Stop doing work on every scroll event while the page is coasting. Everything in
+  the scroll handler is throttled to one run per frame, and iOS suspends
+  requestAnimationFrame during a momentum scroll - so the frame callback never
+  runs, the early return fires, and the handler is meant to cost one boolean check
+  per event while the page glides. The trailing save added below cleared and
+  re-armed a timeout above that return: a fresh closure and a timer churned on
+  every scroll event, sixty to a hundred and twenty times a second, at exactly the
+  moment nothing else was running. Reported as stuttering while the scroll coasts
+  rather than while the finger is down. A timestamp costs no allocation and no
+  timer work: 3.3us per event with the churn, 1.6us without - below the 2.6us the
+  handler cost before the trailing save existed at all.
+- The panel watchdog skips settled pages. It walked every image on the page every
+  three seconds, twice, and once a chapter has loaded there is nothing outstanding
+  to find. It now bails on a flag, which is the state the reader is in for almost
+  all of a chapter.
+- reportPosition() asked which chapter is under the top twice - once for the id and
+  again for the offset - and each call reads a bounding rect per stitched chapter,
+  forcing layout twice for one answer, up to once a second while scrolling.
 - Put the reload offer in the gap, not over the page. It was a bar pinned to the
   bottom of the screen, so it sat in the reader's way for the whole time they were
   still reading the panels above the fault - offering a fix for a problem they had
