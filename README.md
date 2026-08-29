@@ -131,9 +131,15 @@ A native app — one `prefersStatusBarHidden` override. That is the entire diffe
 why this is an app rather than a setting, an extension or a website. See
 [Implementation](#implementation).
 
+**How hard is it to install?**
+On Windows: download the ZIP, extract, double-click one file. The script fetches the finished
+app, checks what it needs, opens the signing tool and tells you the two settings to change on
+the phone. No Xcode, no command line, no building, no GitHub account, no developer account, no
+money. On a Mac, open the Xcode project and run. See [Installing it](#installing-it).
+
 **Do I need a jailbreak?**
-No. It is sideloaded — signed with your own Apple ID on your own device. See
-[Installing it](#installing-it).
+No. It is sideloaded — signed with your own Apple ID on your own device, which Apple requires
+for every app installed outside the App Store.
 
 **Why is it not on the App Store?**
 App Review rejects apps that are largely a wrapper around a website. Competing with another app

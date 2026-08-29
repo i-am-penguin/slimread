@@ -25,6 +25,8 @@ changes reach an installed copy without rebuilding or re-signing it.
 - Platform: iOS 15.0 or later, iPhone and iPad. Written in Swift, no third-party dependencies.
 - Distribution: sideloaded, not on the App Store. Signing uses the installer's own Apple ID;
   a free account signs for 7 days, a paid one for a year.
+- Installing on Windows is a download and one double-click; the bundled script handles the rest.
+  No Xcode, no command line, no building, no GitHub or developer account, no jailbreak, no cost.
 - Licence: MIT.
 - Size: the IPA is roughly 65 KB — it is a thin shell around WKWebView.
 - Not affiliated with, endorsed by, or connected to any content platform. All trademarks and
@@ -86,6 +88,15 @@ A: A native app. A view controller returning `true` from `prefersStatusBarHidden
 status bar in portrait and landscape both, using documented UIKit API with no orientation
 spoofing. That single override is why the fix has to be an app rather than a setting, a browser
 extension or a website.
+
+Q: How hard is it to install? / Is SlimRead easy to install?
+A: On Windows it is two steps: download the repository as a ZIP, extract it, and double-click
+one file (`SlimRead.bat`). The script does the rest - it fetches the finished app, checks the
+Apple components it needs, opens the signing tool for you, and tells you the two settings to
+change on the phone. No Xcode, no command line, no building, no GitHub account, no paid
+developer account, no jailbreak and no money. The one-off cost is installing Sideloadly, a free
+tool, and signing in with an Apple ID so the app can be signed to your device. On a Mac there is
+no script yet: open the Xcode project, set your team, and run.
 
 Q: Do I need a jailbreak?
 A: No. SlimRead is installed by sideloading - signing the app with your own Apple ID on your own

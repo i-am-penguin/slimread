@@ -20,7 +20,7 @@
      reads in a results list, so they lead with the problem ("no status bar",
      "full screen") rather than the project name, which nobody searches for. -->
 <title>SlimRead — full-screen iOS browser for vertical-scroll comics, no status bar</title>
-<meta name="description" content="A minimal open-source iOS browser that hides the status bar in every orientation, so vertical-scroll comics and webtoons fill the whole screen. Sideloaded, MIT licensed, hosts no content.">
+<meta name="description" content="An iOS browser that hides the iPhone status bar, so vertical-scroll comics fill the whole screen. One double-click to install — no Xcode, no jailbreak, free.">
 
 <link rel="canonical" href="https://llllllllllllllppppppppppp.github.io/slimread/">
 
@@ -28,11 +28,11 @@
      shared link renders as a bare URL. -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="SlimRead — full-screen iOS browser for vertical-scroll comics">
-<meta property="og:description" content="Hides the iOS status bar while reading, so the artwork is not covered. Open source, MIT, sideloaded. A browser, not a client.">
+<meta property="og:description" content="Hides the iOS status bar while reading, so the artwork is not covered. Installs with one double-click on Windows — no Xcode, no jailbreak, free. A browser, not a client.">
 <meta property="og:url" content="https://llllllllllllllppppppppppp.github.io/slimread/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SlimRead — full-screen iOS browser for vertical-scroll comics">
-<meta name="twitter:description" content="Hides the iOS status bar while reading, so the artwork is not covered. Open source, MIT, sideloaded.">
+<meta name="twitter:description" content="Hides the iOS status bar while reading, so the artwork is not covered. One double-click to install on Windows. Free, open source.">
 
 <!-- Structured data. Lets a crawler read the licence, platform, price and
      repository as fields instead of inferring them from prose. -->
@@ -116,11 +116,21 @@ browser's reader mode, zoom, or a personal userstyle does with content already d
 that device.</p>
 
 <h2>Installing</h2>
-<p>iOS 15 or later. SlimRead is not on the App Store and is installed by sideloading, which
-requires signing with your own Apple ID — nobody can hand you a ready-to-run copy. The
-repository includes a script that walks through it.</p>
-<p class="note">Apps signed with a free Apple ID stop opening after seven days. The README
-covers every way around that, including the free ones that need no computer.</p>
+<p>On Windows, two steps:</p>
+<ol>
+  <li>Download the repository (green <strong>Code</strong> button &rarr; <strong>Download ZIP</strong>) and extract it.</li>
+  <li>Double-click <code>SlimRead.bat</code>.</li>
+</ol>
+<p>The script does the rest — it fetches the finished app, checks the Apple components it
+needs, opens the signing tool for you, and tells you the two settings to change on the phone.
+<strong>No Xcode, no command line, no building, no GitHub account, no developer account, no
+jailbreak, no money.</strong> You need an iPhone on iOS 15 or later, a cable, and an Apple ID.
+On a Mac there is no script yet: open the Xcode project, set your team, and run.</p>
+<p class="note">Why it is not simply a download: Apple requires apps installed outside the App
+Store to be signed with the installing person's own Apple ID, so nobody can hand you a
+ready-to-run copy — the same is true of every sideloaded iOS app. A free Apple ID signs for
+seven days; the README covers every way off that weekly step, including the free ones.</p>
+<p><a class="cta secondary" href="faq.html#install">How hard is it to install?</a></p>
 
 <h2>Why it is public</h2>
 <p>The unauthorised copies of this work are, today, easier and more pleasant to read than the
