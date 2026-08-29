@@ -7,15 +7,20 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
-- Separate the two things that remove the app, since they look alike and have
-  nothing to do with each other. "SlimRead is no longer available" is iOS
-  offloading the binary, cured permanently by one setting and unrelated to
-  sideloading; the app going quiet after seven days is the free certificate, cured
-  by Sideloadly's refresh daemon, a paid developer account signing for a year
-  instead of a week, or a self-refreshing sideloader. Also sets out why the App
-  Store is not the missing answer: competing with someone is not illegal, the
-  obstacle is App Review policy on repackaged websites and other people's
-  intellectual property, and a site's terms are a contract rather than a crime.
+- Correct what "SlimRead is no longer available" means. It was documented as
+  offloading, cured by one setting - which is only true when the icon carries a
+  cloud. With a normal icon nothing has been offloaded and that setting changes
+  nothing: the binary is still there and iOS has decided it needs replacing anyway,
+  which comes from the signing side - a free profile that reached its seventh day,
+  an iOS update or a restore leaving the app as a record iOS expects to re-fetch,
+  or a revoked certificate. The docs now sort the two by the icon and say plainly
+  which cures apply to which.
+- Set out the ways to stop re-sideloading weekly, and why the App Store is not
+  among them: competing with someone is not illegal, the obstacle is App Review
+  policy on repackaged websites and other people's intellectual property, and a
+  site's terms are a contract rather than a crime. A paid developer account signs
+  for a year instead of a week and is the only option that also addresses the
+  normal-icon case.
 - Throttle the end-of-page check. atBottom() watched for the reader reaching the
   bottom with a bare scroll listener that read scrollHeight - a forced layout -
   on every event, with none of the per-frame throttling the main scroll handler

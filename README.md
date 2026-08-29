@@ -295,24 +295,36 @@ Two different things remove the app, they look similar, and they have completely
 fixes. Sorting out which one you are hitting matters, because one of them is a single
 setting you change once.
 
-### "SlimRead is no longer available" — offloading
+### "SlimRead is no longer available"
 
-Nothing to do with signing. iOS **offloaded** the app: it deleted the binary to reclaim
-storage and kept the data. Tapping the icon makes iOS try to re-download it from the App
-Store, where SlimRead has never been, so it reports it as gone. A small cloud ☁ next to the
-name on the Home Screen confirms it.
+**Do not delete the app.** That message is iOS's, not SlimRead's, and deleting is the one
+action that turns a five-minute fix into losing your login and your reading position.
 
-**Fix it permanently, once:**
+It means iOS wants to re-download the app from the App Store and cannot, because SlimRead was
+never there. **Look at the icon to tell why**, because the two causes have different cures:
+
+**With a cloud ☁ beside the name — offloading.** iOS deleted the binary to reclaim storage
+and kept the data. Cure it permanently, once:
 
 **Settings → App Store → Offload Unused Apps → off.**
 
 Also check **Settings → General → iPhone Storage**, which offers to offload apps individually
-when space is short. SlimRead is a prime candidate there — reading a long series fills the
-web view's cache, so it looks large and idle to iOS.
+when space is short. SlimRead is a prime candidate — reading a long series fills the web
+view's cache, so it looks large and idle to iOS.
 
-That is genuinely permanent. It does not come back, and it has nothing to do with how often
-you sideload. Until the binary is restored once by re-running `SlimRead.bat`, though, the app
-cannot open — offloading removed it.
+**With a normal icon — not offloading.** The binary is still there and iOS has decided it
+needs replacing anyway. That comes from the signing side rather than storage:
+
+- The free provisioning profile lasted its 7 days and expired. This more often shows as
+  "Unable to Verify App", but not always.
+- An iOS update, or a restore from backup, left the app as a record iOS expects to re-fetch
+  from the App Store.
+- The signing certificate was revoked — the free tier does this if an Apple ID registers too
+  many app IDs.
+
+Turning off offloading does nothing for any of these. The immediate fix is the same as ever —
+run `SlimRead.bat` and re-sideload over the top, data intact — but the thing that stops it
+recurring is a longer-lived signature, which is the section below.
 
 ### The app stops opening after 7 days — certificate expiry
 
@@ -330,11 +342,13 @@ be switched on and reachable when the 7 days are up, which is the catch.
 
 **2. A paid Apple Developer Program account — $99/year, no PC needed weekly.**
 
-This is the real answer to "permanently, without sideloading every time". A paid account
-signs for **one year** instead of seven days, so re-signing goes from a weekly chore to an
-annual one. You are not publishing anything and not submitting to review — the program is
-exactly what it says, a developer account for building your own apps onto your own device.
-It also lifts the free tier's three-app limit.
+This is the real answer to "permanently, without sideloading every time", and it is the only
+one that also addresses a normal-icon "no longer available". A paid account signs for **one
+year** instead of seven days, so re-signing goes from a weekly chore to an annual one, and a
+year-long profile is not sitting one week away from expiry every time iOS decides to
+revalidate something. You are not publishing anything and not submitting to review — the
+program is exactly what it says, a developer account for building your own apps onto your own
+device. It also lifts the free tier's three-app limit.
 
 **3. A self-refreshing sideloader (SideStore and similar) — free, no computer after setup.**
 
@@ -638,30 +652,18 @@ happening.
 
 ### "SlimRead is no longer available"
 
-**Do not delete the app.** That message comes from iOS, not from SlimRead, and deleting is the
-one action that turns a five-minute fix into losing your Tapas login and your reading
-position.
+**Do not delete the app** — that is the one action that loses your login and your reading
+position. Re-sideloading over the top keeps both.
 
-It almost always means iOS **offloaded** the app — removed the binary to reclaim storage while
-keeping its data. Tapping the icon makes iOS try to re-download it from the App Store, and
-SlimRead was never there, so it reports it as no longer available. A small cloud ☁ beside the
-app's name on the Home Screen confirms this is what happened.
+There are two different causes and the icon tells you which. See
+[Keeping it installed](#keeping-it-installed), which covers both and what actually stops each
+one recurring. The short version: a cloud ☁ on the icon means storage, no cloud means
+signing, and only the second is fixed by how you sign.
 
-Certificate expiry is the other possibility, but it usually looks different — "Unable to
-Verify App", or the app opens and immediately quits. Either way the fix is the same:
-
-**Run `SlimRead.bat` again and re-sideload over the top.** Sideloadly reinstalls the same
-bundle identifier, so the existing data container reattaches: your logins, reading position,
+**Either way, run `SlimRead.bat` and re-sideload over the top.** Sideloadly reinstalls the
+same bundle identifier, so the existing data container reattaches: logins, reading position,
 saved scroll offsets and any `?slimread=` settings all come back. Nothing needs re-fetching —
 `tweaks/` is pulled fresh from this repository on the next launch regardless.
-
-To stop it recurring, turn offloading off:
-
-**Settings → App Store → Offload Unused Apps → off.**
-
-Also check **Settings → General → iPhone Storage**, which offers to offload apps individually
-when space runs low — SlimRead is a prime candidate there, because reading a long series fills
-the web view's cache and makes the app look large and idle to iOS.
 
 ### A page renders oddly, or a tweak went too far
 
