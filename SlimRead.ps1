@@ -13,7 +13,7 @@
 $ErrorActionPreference = 'Stop'
 
 # Where the finished app is published. Change these two lines if you fork the project.
-$Owner = 'llllllllllllllppppppppppp'
+$Owner = 'i-am-penguin'
 $Repo  = 'slimread'
 
 $IpaURL   = "https://github.com/$Owner/$Repo/releases/latest/download/SlimRead.ipa"

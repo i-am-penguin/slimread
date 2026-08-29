@@ -7,6 +7,20 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Moved every reference from the old GitHub username to `i-am-penguin`: `baseURL`
+  in `TweaksLoader.swift`, `$Owner` in both PowerShell scripts, and the URLs in
+  the README, `llms.txt` and all of `docs/` - canonical links, `og:url`, the
+  JSON-LD `url` and `codeRepository`, `sitemap.xml` and `robots.txt`. The Pages
+  address moves with the username, so every one of those had to change, not just
+  the repository links. The workflows needed no edit; they use the repository they
+  run in. Verified afterwards that the new raw URL serves a `tweaks.js` identical
+  to the local one, and that no reference to the old name survives.
+- Documented what a rename actually costs, under "For the maintainer". The link
+  edits are the easy half. `baseURL` is compiled into the binary, so every copy
+  already on a phone keeps asking the OLD address for the JavaScript it runs at
+  document start - and GitHub hands an abandoned username to whoever registers it
+  next. Holding the old name on a second free account is the only thing that
+  protects those copies; a new release and a reinstall fix everything after that.
 - Answer the question instead of describing the project. Everything written so
   far explains what SlimRead is, which only helps somebody who already knows it
   exists. Nobody searches for that - they search their disappointment: "why is

@@ -1,6 +1,6 @@
-# SlimRead — https://llllllllllllllppppppppppp.github.io/slimread/
+# SlimRead — https://i-am-penguin.github.io/slimread/
 # Everything here is public documentation for an open-source project. Crawl all of it.
 User-agent: *
 Allow: /
 
-Sitemap: https://llllllllllllllppppppppppp.github.io/slimread/sitemap.xml
+Sitemap: https://i-am-penguin.github.io/slimread/sitemap.xml

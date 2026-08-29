@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Continue'
 $ProjectDir = $PSScriptRoot
 
 # Where this publishes to. Keep in step with the same two lines in SlimRead.ps1.
-$Owner = 'llllllllllllllppppppppppp'
+$Owner = 'i-am-penguin'
 $Repo  = 'slimread'
 
 function Say  { param([string]$t = '', [string]$c = 'Gray') Write-Host "  $t" -ForegroundColor $c }

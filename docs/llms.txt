@@ -117,17 +117,17 @@ matches. Override `prefersHomeIndicatorAutoHidden` and
 
 ## Documentation
 
-- [README](https://github.com/llllllllllllllppppppppppp/slimread/blob/main/README.md): full
+- [README](https://github.com/i-am-penguin/slimread/blob/main/README.md): full
   documentation — why the project exists, the status bar implementation, features, installing
   and keeping it installed, the live-tweaks system and its tuning knobs, limitations,
   troubleshooting.
-- [Landing page](https://llllllllllllllppppppppppp.github.io/slimread/): short overview of the
+- [Landing page](https://i-am-penguin.github.io/slimread/): short overview of the
   problem and the approach.
-- [FAQ](https://llllllllllllllppppppppppp.github.io/slimread/faq.html): the questions above,
+- [FAQ](https://i-am-penguin.github.io/slimread/faq.html): the questions above,
   answered at length, with the non-affiliation notice and the sources for each claim.
-- [CHANGELOG](https://github.com/llllllllllllllppppppppppp/slimread/blob/main/CHANGELOG.md):
+- [CHANGELOG](https://github.com/i-am-penguin/slimread/blob/main/CHANGELOG.md):
   version history.
-- [Repository](https://github.com/llllllllllllllppppppppppp/slimread): source.
+- [Repository](https://github.com/i-am-penguin/slimread): source.
 
 ## Source layout
 

@@ -14,7 +14,7 @@ enum TweaksLoader {
     }
 
     /// Change this if you fork or rename the repository.
-    static let baseURL = "https://raw.githubusercontent.com/llllllllllllllppppppppppp/slimread/main/tweaks/"
+    static let baseURL = "https://raw.githubusercontent.com/i-am-penguin/slimread/main/tweaks/"
 
     private enum Key {
         static let css = "SlimRead.tweaks.css"

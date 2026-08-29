@@ -7,8 +7,8 @@ Built on WKWebView for full-screen reading on iOS: no status bar in portrait *or
 no browser chrome, no letterboxing, and continuous chapter-to-chapter scrolling. Installed by
 sideloading. MIT licensed. Hosts no content and circumvents nothing.
 
-**Landing page:** <https://llllllllllllllppppppppppp.github.io/slimread/> ·
-**FAQ:** [Why is the status bar over my comic?](https://llllllllllllllppppppppppp.github.io/slimread/faq.html) ·
+**Landing page:** <https://i-am-penguin.github.io/slimread/> ·
+**FAQ:** [Why is the status bar over my comic?](https://i-am-penguin.github.io/slimread/faq.html) ·
 **Machine-readable summary:** [`llms.txt`](llms.txt)
 
 ---
@@ -102,7 +102,7 @@ A native app has no such restriction. A view controller returning `true` from
 <!-- These are here in the words people actually search with, rather than the words this
      project would use to describe itself. Somebody hitting this problem types "why is the
      clock over my comic", not "SlimRead". The long-form answers live at
-     https://llllllllllllllppppppppppp.github.io/slimread/faq.html - keep the two in step. -->
+     https://i-am-penguin.github.io/slimread/faq.html - keep the two in step. -->
 
 **Can you hide the status bar while reading in a comics app on iPhone?**
 In most of them, no. The clock, battery and signal are drawn over the page for the whole
@@ -520,6 +520,34 @@ no instructions beyond "run the file".
 
 If you fork this, change the last two — otherwise your users pull from the original
 repository rather than yours.
+
+### If the GitHub username or repository ever changes again
+
+<!-- Written after the move from the previous username. The link-fixing is the easy half; the
+     half that matters is that baseURL is COMPILED IN, so already-installed copies keep asking
+     the old address, and GitHub hands the old username to whoever claims it next. -->
+
+Renaming is not just a link edit. `baseURL` in `TweaksLoader.swift` is compiled into the
+binary, and the app fetches JavaScript from it and runs it on every page at document start.
+Three things follow, in order of importance:
+
+1. **Claim the old username and keep it.** GitHub releases an abandoned username for anyone to
+   register, and its redirects stop the moment somebody does. Every copy of the app installed
+   before the rename still asks the *old* address for `tweaks.js` — so whoever holds that name
+   can serve arbitrary JavaScript into those copies, inside the reader's logged-in session.
+   Registering the old name on a second free account costs nothing and is the only measure that
+   protects copies already on people's phones.
+2. **Cut a new release.** The prebuilt IPA in Releases has the old URL inside it, so
+   `SlimRead.bat` keeps handing out the old address until a new build is published from the
+   renamed repository.
+3. **Reinstall your own copy** once that release exists, so your phone stops using the old
+   address too.
+
+Then update the references: `$Owner` in `SlimRead.ps1` and `Publish-Update.ps1`, `baseURL` in
+`TweaksLoader.swift`, and the URLs in `README.md`, `llms.txt` and everything under `docs/`
+(canonical links, `og:url`, the JSON-LD `url` and `codeRepository`, `sitemap.xml`,
+`robots.txt`). The GitHub Pages address changes too — it is derived from the username. The
+workflows in `.github/workflows/` need no edit; they use the repository they run in.
 
 ### Building on macOS
 
