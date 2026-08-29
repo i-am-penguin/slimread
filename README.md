@@ -329,7 +329,8 @@ recurring is a longer-lived signature, which is the section below.
 ### The app stops opening after 7 days — certificate expiry
 
 This is the signing clock, and it is separate. A **free** Apple ID signs apps for 7 days.
-Three ways to stop thinking about it, in increasing order of how permanent they are:
+Five ways to stop thinking about it — four of them free. They differ in what they still
+require of you: a computer that stays on, some fiddling, an old iOS, or money.
 
 **1. Sideloadly's refresh daemon — free, needs the PC reachable.**
 
@@ -340,7 +341,38 @@ Three ways to stop thinking about it, in increasing order of how permanent they 
 Sideloadly then re-signs whenever the phone is on the same network as the PC. The PC has to
 be switched on and reachable when the 7 days are up, which is the catch.
 
-**2. A paid Apple Developer Program account — $99/year, no PC needed weekly.**
+**2. AltStore with AltServer — free, same constraint as Sideloadly.**
+
+Functionally the same trade as option 1: a desktop app re-signs over Wi-Fi when the phone and
+the computer are on the same network. Worth knowing about as an alternative if Sideloadly's
+daemon is unreliable for you, but it does not remove the need for a computer that is switched
+on.
+
+**3. SideStore — free, and no computer after setup.**
+
+An AltStore fork that does the refreshing **on the device**. It stands up a local connection
+to Apple's services on-phone rather than through a desktop, so once it is set up nothing else
+has to be running. Still 7-day certificates underneath — they are just renewed without you or
+your PC.
+
+The catch is setup: it wants a pairing file generated once from a computer, and it leans on
+iOS behaviour that shifts between releases, so it periodically breaks after an iOS update
+until the project catches up. This is the free option that genuinely removes the weekly chore,
+at the cost of being the fiddliest to get working.
+
+**4. TrollStore — free, permanent, and only on old iOS.**
+
+On the iOS versions it supports, TrollStore installs apps with a signature that **never
+expires**. No refreshing, no seven days, no computer — install once and it stays. That is a
+complete answer to this whole section.
+
+It works by way of a flaw Apple fixed. Support runs to roughly **iOS 17.0**, with the exact
+cut-off depending on the build, and there is no way onto it from a newer release because iOS
+cannot be downgraded. Check **Settings → General → About → Software Version** before spending
+any time on it: if that reads 17.1 or later, this option does not exist for your device and no
+amount of effort will make it.
+
+**5. A paid Apple Developer Program account — $99/year, no PC needed weekly.**
 
 This is the real answer to "permanently, without sideloading every time", and it is the only
 one that also addresses a normal-icon "no longer available". A paid account signs for **one
@@ -350,12 +382,12 @@ revalidate something. You are not publishing anything and not submitting to revi
 program is exactly what it says, a developer account for building your own apps onto your own
 device. It also lifts the free tier's three-app limit.
 
-**3. A self-refreshing sideloader (SideStore and similar) — free, no computer after setup.**
+**What to avoid: "free signing" websites and enterprise certificates.**
 
-These refresh the certificate on the device over Wi-Fi rather than needing a desktop app
-running. Still 7-day certificates underneath, just renewed without you. Setup is fiddlier
-than Sideloadly (it wants a pairing file) and reliability varies with iOS versions, so treat
-it as the option to try if you want free *and* PC-free and do not mind tinkering.
+Services that sign an IPA for you without your own Apple ID are almost always distributing
+under someone else's enterprise certificate. Apple revokes those regularly and in bulk, so the
+app dies without warning and often takes others with it — and it means handing your build, and
+sometimes your Apple ID, to a stranger. Not worth it for an app you can sign yourself.
 
 ### Why not just put it on the App Store?
 

@@ -15,12 +15,19 @@ it to the version number when a build is published.
   an iOS update or a restore leaving the app as a record iOS expects to re-fetch,
   or a revoked certificate. The docs now sort the two by the icon and say plainly
   which cures apply to which.
-- Set out the ways to stop re-sideloading weekly, and why the App Store is not
-  among them: competing with someone is not illegal, the obstacle is App Review
-  policy on repackaged websites and other people's intellectual property, and a
-  site's terms are a contract rather than a crime. A paid developer account signs
-  for a year instead of a week and is the only option that also addresses the
-  normal-icon case.
+- Set out every way to stop re-sideloading weekly, free ones first. Sideloadly's
+  daemon and AltStore both re-sign over Wi-Fi but need a computer left on;
+  SideStore refreshes on the device with nothing else running, at the cost of a
+  fiddlier setup that iOS updates periodically break; TrollStore signs permanently
+  and needs no refreshing at all, but only up to about iOS 17.0, so check the
+  version before spending time on it. A paid developer account signs for a year
+  and is the only one that costs money. Also flags what to avoid - "free signing"
+  sites running on someone else's enterprise certificate, which Apple revokes in
+  bulk.
+- Explain why the App Store is not among the answers: competing with someone is
+  not illegal, the obstacle is App Review policy on repackaged websites and other
+  people's intellectual property, and a site's terms are a contract rather than a
+  crime.
 - Throttle the end-of-page check. atBottom() watched for the reader reaching the
   bottom with a bare scroll listener that read scrollHeight - a forced layout -
   on every event, with none of the per-frame throttling the main scroll handler
