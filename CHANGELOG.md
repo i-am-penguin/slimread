@@ -7,6 +7,15 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Separate the two things that remove the app, since they look alike and have
+  nothing to do with each other. "SlimRead is no longer available" is iOS
+  offloading the binary, cured permanently by one setting and unrelated to
+  sideloading; the app going quiet after seven days is the free certificate, cured
+  by Sideloadly's refresh daemon, a paid developer account signing for a year
+  instead of a week, or a self-refreshing sideloader. Also sets out why the App
+  Store is not the missing answer: competing with someone is not illegal, the
+  obstacle is App Review policy on repackaged websites and other people's
+  intellectual property, and a site's terms are a contract rather than a crime.
 - Throttle the end-of-page check. atBottom() watched for the reader reaching the
   bottom with a bare scroll listener that read scrollHeight - a forced layout -
   on every event, with none of the per-frame throttling the main scroll handler

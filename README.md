@@ -287,22 +287,87 @@ Two consequences:
 - **Developer Mode must be enabled** and left on. It does not disable code signing,
   sandboxing or encryption. See [Troubleshooting](#troubleshooting).
 
-You can remove the weekly step entirely — see [Automatic renewal](#automatic-renewal).
+You can remove the weekly step entirely — see [Keeping it installed](#keeping-it-installed).
 
-## Automatic renewal
+## Keeping it installed
 
-The 7-day expiry can be automated away with Sideloadly's built-in refresh daemon. Two
-one-time steps:
+Two different things remove the app, they look similar, and they have completely different
+fixes. Sorting out which one you are hitting matters, because one of them is a single
+setting you change once.
 
-1. **When sideloading,** tick the **auto-refresh** option before pressing Start.
-2. **Enable Wi-Fi sideloading:** with the phone connected by cable, open iTunes → your
-   device → Summary → Options → tick **Sync with this iDevice over Wi-Fi** → Sync.
+### "SlimRead is no longer available" — offloading
 
-From then on Sideloadly re-signs the app whenever your phone is on the same network as your
-PC. Nothing to remember and no cable.
+Nothing to do with signing. iOS **offloaded** the app: it deleted the binary to reclaim
+storage and kept the data. Tapping the icon makes iOS try to re-download it from the App
+Store, where SlimRead has never been, so it reports it as gone. A small cloud ☁ next to the
+name on the Home Screen confirms it.
 
-Your PC has to be switched on and reachable for this to fire. That is unavoidable — the
-signing has to happen somewhere, and on a free Apple ID it happens on a computer.
+**Fix it permanently, once:**
+
+**Settings → App Store → Offload Unused Apps → off.**
+
+Also check **Settings → General → iPhone Storage**, which offers to offload apps individually
+when space is short. SlimRead is a prime candidate there — reading a long series fills the
+web view's cache, so it looks large and idle to iOS.
+
+That is genuinely permanent. It does not come back, and it has nothing to do with how often
+you sideload. Until the binary is restored once by re-running `SlimRead.bat`, though, the app
+cannot open — offloading removed it.
+
+### The app stops opening after 7 days — certificate expiry
+
+This is the signing clock, and it is separate. A **free** Apple ID signs apps for 7 days.
+Three ways to stop thinking about it, in increasing order of how permanent they are:
+
+**1. Sideloadly's refresh daemon — free, needs the PC reachable.**
+
+1. When sideloading, tick **auto-refresh** before pressing Start.
+2. With the phone connected by cable: iTunes → your device → Summary → Options → tick
+   **Sync with this iDevice over Wi-Fi** → Sync.
+
+Sideloadly then re-signs whenever the phone is on the same network as the PC. The PC has to
+be switched on and reachable when the 7 days are up, which is the catch.
+
+**2. A paid Apple Developer Program account — $99/year, no PC needed weekly.**
+
+This is the real answer to "permanently, without sideloading every time". A paid account
+signs for **one year** instead of seven days, so re-signing goes from a weekly chore to an
+annual one. You are not publishing anything and not submitting to review — the program is
+exactly what it says, a developer account for building your own apps onto your own device.
+It also lifts the free tier's three-app limit.
+
+**3. A self-refreshing sideloader (SideStore and similar) — free, no computer after setup.**
+
+These refresh the certificate on the device over Wi-Fi rather than needing a desktop app
+running. Still 7-day certificates underneath, just renewed without you. Setup is fiddlier
+than Sideloadly (it wants a pairing file) and reliability varies with iOS versions, so treat
+it as the option to try if you want free *and* PC-free and do not mind tinkering.
+
+### Why not just put it on the App Store?
+
+Competing with someone is not illegal. There is no law against writing a browser that can
+open a website which also happens to have its own app, and a general-purpose browser is an
+ordinary, lawful thing to build. That part of the worry can be set down.
+
+The real barrier is Apple's **App Review Guidelines**, which are policy rather than law, and
+SlimRead would very likely fail two of them:
+
+- **4.2 Minimum Functionality.** A browser whose purpose is one site reads as a repackaged
+  website. That is a standard rejection.
+- **5.2 Intellectual Property.** An app built around another company's content and name,
+  without their permission, is one App Review declines to referee.
+
+Separately, a site's Terms of Service are a contract between that site and you. Breaching
+terms is a civil matter with them — not a criminal one, and not something the App Store is
+the arbiter of.
+
+What *would* create real legal exposure is hosting or redistributing content, breaking a
+paywall or DRM, or using someone's trademarks as your own. SlimRead is built to do none of
+those, and the reasoning is set out under [What this is not](#what-this-is-not).
+
+None of this is legal advice, and this file is not written by a lawyer. If you ever intend to
+distribute SlimRead to other people rather than run it yourself, that is the point to get a
+real opinion — the analysis changes completely once other people are involved.
 
 ## Updating
 
@@ -568,7 +633,7 @@ process is actually running.
 ### The app stopped opening after a week
 
 The free certificate expired. Run `SlimRead.bat` again and re-sideload. App data, logins and
-reading position all survive. Set up [Automatic renewal](#automatic-renewal) so it stops
+reading position all survive. See [Keeping it installed](#keeping-it-installed) for how to stop it
 happening.
 
 ### "SlimRead is no longer available"
