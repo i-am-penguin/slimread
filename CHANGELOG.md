@@ -7,6 +7,8 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+
+## v1.27 - 2026-08-29
 - Moved every reference from the old GitHub username to `i-am-penguin`: `baseURL`
   in `TweaksLoader.swift`, `$Owner` in both PowerShell scripts, and the URLs in
   the README, `llms.txt` and all of `docs/` - canonical links, `og:url`, the
