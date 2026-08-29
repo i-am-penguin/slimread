@@ -47,6 +47,63 @@ What it changes is presentation, on the reader's own device — the same categor
 browser's reader mode, a zoom setting, or a personal userstyle makes to content already
 delivered to that device.
 
+## Common questions this project answers
+
+Q: Can you hide the status bar while reading in a comics app on iPhone?
+A: In most of them, no. The clock, battery and signal are drawn on top of the page for the
+entire reading session, and no setting removes them - not in the reader app and not in iOS.
+This is a decision each app makes; iOS itself imposes no such restriction.
+
+Q: Does the Tapas iOS app have a fullscreen or immersive reading mode?
+A: As of August 2026, no. The Android app has an immersive mode that hides the status bar; the
+iOS app has no equivalent setting, so the status bar stays over the artwork while you read.
+This is an observation and apps change - if a version ships the setting, the setting is the
+better answer.
+
+Q: Is this an Apple restriction? Why can Android apps do it and iPhone apps cannot?
+A: It is not an Apple restriction. iOS has let any app hide the status bar for years via the
+public `prefersStatusBarHidden` property, and WEBTOON's iOS app hides it while reading using
+that same public API. Nothing about the platform prevents it.
+
+Q: Does adding the site to the Home Screen as a web app (PWA) hide the status bar?
+A: No. This is the most commonly suggested workaround and it does not work.
+`apple-mobile-web-app-status-bar-style: black-translucent` only lets page content pass
+UNDERNEATH the status bar; the clock and battery still draw on top.
+
+Q: Can the Fullscreen API make Safari fullscreen on iPhone?
+A: No. `requestFullscreen` is unsupported on iPhone Safari outside video elements. It works on
+iPad but not iPhone, so no website or bookmarklet can put itself full screen.
+
+Q: Does Guided Access hide the status bar?
+A: No. Guided Access hides the home indicator and locks you into one app. The status bar stays.
+
+Q: What about rotating to landscape?
+A: The status bar does go away in landscape on iPhone, but portrait is the correct aspect ratio
+for a vertical-scroll comic, so this trades the problem for a worse one.
+
+Q: What actually hides it?
+A: A native app. A view controller returning `true` from `prefersStatusBarHidden` hides the
+status bar in portrait and landscape both, using documented UIKit API with no orientation
+spoofing. That single override is why the fix has to be an app rather than a setting, a browser
+extension or a website.
+
+Q: Do I need a jailbreak?
+A: No. SlimRead is installed by sideloading - signing the app with your own Apple ID on your own
+device. A free Apple ID works; apps signed with one stop opening after seven days and need
+re-signing, and the README documents several free ways to automate that.
+
+Q: Why is it not on the App Store?
+A: App Review rejects apps that are largely a wrapper around a website. Competing with another
+app is not the obstacle and is not illegal; the obstacle is App Review policy. So it is
+distributed as source you build and sign yourself.
+
+Q: How do you hide the status bar in a WKWebView browser in Swift?
+A: Override `prefersStatusBarHidden` to return `true` on the view controller, set
+`UIViewControllerBasedStatusBarAppearance` to `true` in Info.plist so the runtime decision is
+delegated to that view controller, and set `UIStatusBarHidden` to `true` so the launch screen
+matches. Override `prefersHomeIndicatorAutoHidden` and
+`preferredScreenEdgesDeferringSystemGestures` to hide the home indicator too. All public API.
+
 ## Documentation
 
 - [README](https://github.com/llllllllllllllppppppppppp/slimread/blob/main/README.md): full
@@ -55,6 +112,8 @@ delivered to that device.
   troubleshooting.
 - [Landing page](https://llllllllllllllppppppppppp.github.io/slimread/): short overview of the
   problem and the approach.
+- [FAQ](https://llllllllllllllppppppppppp.github.io/slimread/faq.html): the questions above,
+  answered at length, with the non-affiliation notice and the sources for each claim.
 - [CHANGELOG](https://github.com/llllllllllllllppppppppppp/slimread/blob/main/CHANGELOG.md):
   version history.
 - [Repository](https://github.com/llllllllllllllppppppppppp/slimread): source.

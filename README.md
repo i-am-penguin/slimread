@@ -8,6 +8,7 @@ no browser chrome, no letterboxing, and continuous chapter-to-chapter scrolling.
 sideloading. MIT licensed. Hosts no content and circumvents nothing.
 
 **Landing page:** <https://llllllllllllllppppppppppp.github.io/slimread/> ·
+**FAQ:** [Why is the status bar over my comic?](https://llllllllllllllppppppppppp.github.io/slimread/faq.html) ·
 **Machine-readable summary:** [`llms.txt`](llms.txt)
 
 ---
@@ -95,6 +96,53 @@ the platform nor the pattern is the obstacle.
 
 A native app has no such restriction. A view controller returning `true` from
 `prefersStatusBarHidden` hides it in every orientation.
+
+### Common questions
+
+<!-- These are here in the words people actually search with, rather than the words this
+     project would use to describe itself. Somebody hitting this problem types "why is the
+     clock over my comic", not "SlimRead". The long-form answers live at
+     https://llllllllllllllppppppppppp.github.io/slimread/faq.html - keep the two in step. -->
+
+**Can you hide the status bar while reading in a comics app on iPhone?**
+In most of them, no. The clock, battery and signal are drawn over the page for the whole
+session and no setting removes them — not in the reader app, not in iOS.
+
+**Does the Tapas iOS app have a fullscreen or immersive reading mode?**
+As of August 2026, no. The Android app has an immersive mode that hides the status bar; the
+iOS app has no equivalent setting. That is an observation, not an announcement — if a version
+ships the setting, the setting is the better answer and this line is out of date.
+
+**Is this an Apple restriction?**
+No. iOS has let any app hide the status bar for years, and WEBTOON's iOS app does exactly that
+while reading, using the same public API used here. See [Platform parity](#platform-parity).
+
+**Does a Home Screen web app (PWA) fix it?**
+No — the most commonly suggested workaround, and it does not work. `black-translucent` only
+lets content pass *underneath* the status bar; the clock and battery still draw on top.
+
+**Does the Fullscreen API or Guided Access help?**
+No to both. `requestFullscreen` is unsupported on iPhone Safari outside video elements, and
+Guided Access hides the home indicator, not the status bar. See
+[Why the web platform can't do this](#why-the-web-platform-cant-do-this).
+
+**What actually hides it?**
+A native app — one `prefersStatusBarHidden` override. That is the entire difference, and it is
+why this is an app rather than a setting, an extension or a website. See
+[Implementation](#implementation).
+
+**Do I need a jailbreak?**
+No. It is sideloaded — signed with your own Apple ID on your own device. See
+[Installing it](#installing-it).
+
+**Why is it not on the App Store?**
+App Review rejects apps that are largely a wrapper around a website. Competing with another app
+is neither the obstacle nor illegal. See
+[Why not just put it on the App Store?](#why-not-just-put-it-on-the-app-store).
+
+> Not affiliated with, endorsed by, or connected to Tapas, WEBTOON, Apple or any other company.
+> Other products are named only to describe factually what they do and do not do.
+> All trademarks belong to their owners.
 
 ## Features
 

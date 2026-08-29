@@ -1,0 +1,230 @@
+<!doctype html>
+<!-- ===========================================================================
+     The findability page.
+
+     docs/index.html describes the project. This page answers the QUESTION, in the
+     words somebody with the problem actually types - "why is the clock over my
+     comic", "does Tapas have a fullscreen mode on iPhone", "why doesn't a PWA
+     hide the iOS status bar". Nobody searches for "SlimRead"; they search for
+     their disappointment. So the headings here are the questions, not features,
+     and each answer opens with a plain verdict before the explanation, because
+     that opening sentence is what a search engine lifts into a result and what an
+     AI quotes back to whoever asked.
+
+     On naming another product: it is named here only to say factually what it
+     does and does not do, which is the only way this page can be found by
+     somebody looking for exactly that. It is never used as part of this project's
+     own name, and the notice at the top of the page states no affiliation. Keep
+     it that way - the repository name, the GitHub description and the title of
+     this project must stay free of it.
+
+     Every factual claim about another app is dated and attributed to observation,
+     because these things change and a stale claim stated as fact is a liability.
+     =========================================================================== -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Why is the status bar over my comic? Reading vertical-scroll comics full screen on iOS</title>
+<meta name="description" content="The iPhone status bar sits over the artwork while you read, and no setting removes it — not in the reader app, not in iOS, not in a Home Screen web app. Why that is, what does not work, and the one thing that does.">
+
+<link rel="canonical" href="https://llllllllllllllppppppppppp.github.io/slimread/faq.html">
+<link rel="stylesheet" href="style.css">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Why is the status bar over my comic? Full-screen reading on iOS">
+<meta property="og:description" content="No setting in iOS or in any reader app hides the status bar while reading. Here is why, what does not work, and the one thing that does.">
+<meta property="og:url" content="https://llllllllllllllppppppppppp.github.io/slimread/faq.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Why is the status bar over my comic? Full-screen reading on iOS">
+<meta name="twitter:description" content="No setting in iOS or in any reader app hides the status bar while reading. Here is why, and what does.">
+
+<!-- FAQPage structured data. Google can render these as expandable results, and
+     an AI reading the page gets the question/answer pairing as fields rather than
+     having to infer it from prose. Every answer below is the same text as the
+     visible one - Google requires that, and a mismatch is worse than no schema. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Can you hide the status bar while reading in a comics app on iPhone?",
+      "acceptedAnswer": { "@type": "Answer", "text": "In most of them, no. The clock, battery and signal are drawn on top of the page for the entire reading session, and there is no setting that removes them — not in the reader app and not in iOS. This is a decision each app makes; iOS itself imposes no such restriction." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does the Tapas iOS app have a fullscreen or immersive reading mode?",
+      "acceptedAnswer": { "@type": "Answer", "text": "As of August 2026, no. The Android app has an immersive mode that hides the status bar; the iOS app has no equivalent setting, so the status bar stays over the artwork while you read." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this an Apple restriction? Why can Android apps do it and iPhone apps cannot?",
+      "acceptedAnswer": { "@type": "Answer", "text": "It is not an Apple restriction. iOS has given every app the ability to hide the status bar for years, through the public prefersStatusBarHidden property. WEBTOON's iOS app hides it while reading using that same public API. Nothing about the platform prevents it — the change simply has not been made." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does adding the site to the Home Screen as a web app hide the status bar?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. This is the workaround most often suggested and it does not work. The apple-mobile-web-app-status-bar-style meta tag set to black-translucent only lets page content pass underneath the status bar. The clock and battery still draw on top of it." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can the Fullscreen API make Safari fullscreen on iPhone?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. requestFullscreen is not supported on iPhone Safari outside of video elements. On iPad it works; on iPhone it does not, so no website or bookmarklet can put itself full screen." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Guided Access hide the status bar?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. Guided Access hides the home indicator at the bottom of the screen and locks you into one app. The status bar at the top stays exactly where it was." }
+    },
+    {
+      "@type": "Question",
+      "name": "What actually does hide it?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A native app. A view controller returning true from prefersStatusBarHidden hides the status bar in both portrait and landscape, using documented UIKit API with no orientation spoofing. That single override is the entire difference, and it is why the fix has to be an app rather than a setting, an extension or a website." }
+    },
+    {
+      "@type": "Question",
+      "name": "What is SlimRead?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A small open-source iOS web browser, built around that one override. You sign in to the site you already use and read it in the browser, except that nothing is drawn over the page. It also scrolls continuously from one chapter into the next instead of stopping at a wall of comments. It is a browser, not a client for any service: it hosts no content, stores nothing offline, bypasses no paywall, and is not affiliated with any company." }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need a jailbreak to use it?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. It is installed by sideloading, which is signing the app with your own Apple ID on your own device. A free Apple ID works; apps signed with one stop opening after seven days and need re-signing, and the project documents several free ways to automate that." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is it not on the App Store?",
+      "acceptedAnswer": { "@type": "Answer", "text": "App Review rejects apps that are largely a wrapper around a website, and an app whose reason for existing is presenting somebody else's site differently would not survive that review. Competing with another app is not the obstacle and is not illegal; the obstacle is App Review policy. So it is distributed as source code that you build and sign yourself." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do you hide the status bar in a WKWebView browser in Swift?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Override prefersStatusBarHidden to return true on the view controller, set UIViewControllerBasedStatusBarAppearance to true in Info.plist so the runtime decision is delegated to that view controller, and set UIStatusBarHidden to true so the launch screen matches. Override prefersHomeIndicatorAutoHidden and preferredScreenEdgesDeferringSystemGestures to remove the home indicator as well. All of it is public API and App Store compliant." }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<p class="breadcrumb"><a href="./">SlimRead</a> &rsaquo; Reading full screen on iOS</p>
+
+<h1>Why is the status bar sitting over my comic?</h1>
+<p class="tag">You are reading a vertical-scroll comic on an iPhone, and the clock, battery and
+signal are drawn on top of the artwork the entire time. There is no setting for it. Here is why,
+everything that does not work, and the one thing that does.</p>
+
+<div class="disclaimer">
+  This is an independent open-source project. It is not affiliated with, endorsed by, or
+  connected to Tapas, WEBTOON, Apple, or any other company. Other products are named here only
+  to describe factually what they do and do not do. All trademarks belong to their owners.
+</div>
+
+<div class="faq">
+
+<h2>Can you hide the status bar while reading in a comics app on iPhone?</h2>
+<p><span class="verdict">In most of them, no.</span> The clock, battery and signal are drawn on
+top of the page for the entire reading session, and there is no setting that removes them —
+not in the reader app and not in iOS. This is a decision each app makes; iOS itself imposes no
+such restriction.</p>
+
+<h2>Does the Tapas iOS app have a fullscreen or immersive reading mode?</h2>
+<p><span class="verdict">As of August 2026, no.</span> The Android app has an immersive mode
+that hides the status bar; the iOS app has no equivalent setting, so the status bar stays over
+the artwork while you read.</p>
+<p>This is an observation, not an announcement — apps change, and if a version ships with the
+setting then this page is out of date and the setting is the better answer.</p>
+
+<h2>Is this an Apple restriction? Why can Android apps do it and iPhone apps cannot?</h2>
+<p><span class="verdict">It is not an Apple restriction.</span> iOS has given every app the
+ability to hide the status bar for years, through the public
+<code>prefersStatusBarHidden</code> property. WEBTOON's iOS app hides it while reading using
+that same public API. Nothing about the platform prevents it — the change simply has not been
+made.</p>
+
+<h2>Does adding the site to the Home Screen as a web app hide the status bar?</h2>
+<p><span class="verdict">No.</span> This is the workaround most often suggested and it does not
+work. The <code>apple-mobile-web-app-status-bar-style</code> meta tag set to
+<code>black-translucent</code> only lets page content pass <em>underneath</em> the status bar.
+The clock and battery still draw on top of it.</p>
+
+<h2>Can the Fullscreen API make Safari fullscreen on iPhone?</h2>
+<p><span class="verdict">No.</span> <code>requestFullscreen</code> is not supported on iPhone
+Safari outside of video elements. On iPad it works; on iPhone it does not, so no website or
+bookmarklet can put itself full screen.</p>
+
+<h2>Does Guided Access hide the status bar?</h2>
+<p><span class="verdict">No.</span> Guided Access hides the home indicator at the bottom of the
+screen and locks you into one app. The status bar at the top stays exactly where it was.</p>
+
+<h2>What about rotating to landscape?</h2>
+<p>The status bar does go away in landscape on iPhone. But portrait is the correct aspect ratio
+for a vertical-scroll comic — landscape trades the problem for a worse one.</p>
+
+<h2>What actually does hide it?</h2>
+<p><span class="verdict">A native app.</span> A view controller returning <code>true</code> from
+<code>prefersStatusBarHidden</code> hides the status bar in both portrait and landscape, using
+documented UIKit API with no orientation spoofing. That single override is the entire
+difference, and it is why the fix has to be an app rather than a setting, an extension or a
+website.</p>
+
+<h2>What is SlimRead?</h2>
+<p><span class="verdict">A small open-source iOS web browser, built around that one
+override.</span> You sign in to the site you already use and read it in the browser, except
+that nothing is drawn over the page. It also scrolls continuously from one chapter into the
+next instead of stopping at a wall of comments.</p>
+<p>It is a browser, not a client for any service: it hosts no content, stores nothing offline,
+bypasses no paywall, and is not affiliated with any company. Every page and image is loaded
+live from the site's own servers over your own logged-in session, exactly as a browser would.
+Subscriptions, purchases and creator payouts all happen on the site, under its terms.</p>
+<p><a class="cta" href="https://github.com/llllllllllllllppppppppppp/slimread">Source on GitHub</a></p>
+
+<h2>Do I need a jailbreak to use it?</h2>
+<p><span class="verdict">No.</span> It is installed by sideloading, which is signing the app
+with your own Apple ID on your own device. A free Apple ID works; apps signed with one stop
+opening after seven days and need re-signing, and the project documents several free ways to
+automate that.</p>
+
+<h2>Why is it not on the App Store?</h2>
+<p>App Review rejects apps that are largely a wrapper around a website, and an app whose reason
+for existing is presenting somebody else's site differently would not survive that review.
+Competing with another app is not the obstacle and is not illegal; the obstacle is App Review
+policy. So it is distributed as source code that you build and sign yourself.</p>
+
+<h2>How do you hide the status bar in a WKWebView browser in Swift?</h2>
+<p>Override <code>prefersStatusBarHidden</code> to return <code>true</code> on the view
+controller, set <code>UIViewControllerBasedStatusBarAppearance</code> to <code>true</code> in
+<code>Info.plist</code> so the runtime decision is delegated to that view controller, and set
+<code>UIStatusBarHidden</code> to <code>true</code> so the launch screen matches. Override
+<code>prefersHomeIndicatorAutoHidden</code> and
+<code>preferredScreenEdgesDeferringSystemGestures</code> to remove the home indicator as well.
+All of it is public API and App Store compliant.</p>
+<pre><code>override var prefersStatusBarHidden: Bool { true }
+override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
+override var prefersHomeIndicatorAutoHidden: Bool { true }
+override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.top, .bottom] }</code></pre>
+
+</div>
+
+<h2>Why this exists at all</h2>
+<p>The unauthorised copies of this work are, today, easier and more pleasant to read than the
+paid original — better layout, nothing covering the art, no friction. SlimRead exists because
+one reader would rather patch around a single unmet request than switch sides. The lesson for
+anyone shipping a reading product: <strong>when the paid, legal path is worse than the free,
+illegal one, you teach your own audience to leave.</strong></p>
+
+<footer>
+  MIT licensed. Not legal advice, and not affiliated with or endorsed by any content platform.
+  All trademarks and content belong to their respective owners.
+  <br><a href="https://github.com/llllllllllllllppppppppppp/slimread">github.com/llllllllllllllppppppppppp/slimread</a>
+  &middot; <a href="./">Overview</a>
+  &middot; <a href="llms.txt">llms.txt</a>
+</footer>
+
+</div>
+</body>
+</html>

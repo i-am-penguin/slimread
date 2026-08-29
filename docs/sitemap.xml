@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Both pages, so a crawler that finds one finds the other. faq.html is listed
+     at the same priority as the overview deliberately: it is the page that
+     answers the question people actually search for, so it is the entry point
+     for most visitors, not a subpage. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://llllllllllllllppppppppppp.github.io/slimread/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://llllllllllllllppppppppppp.github.io/slimread/faq.html</loc>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>

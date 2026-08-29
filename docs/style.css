@@ -1,0 +1,56 @@
+/* ===========================================================================
+   Shared styles for the SlimRead GitHub Pages site (docs/).
+
+   One stylesheet rather than a copy inside each page, so a change here reaches
+   every page. It is still self-contained: same repository, same origin, no CDN,
+   no build step and no web-font fetch, so nothing outside this repo can break
+   the site. Dark by default - it is a site about reading comics in the dark.
+   =========================================================================== */
+
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0b0c; color: #e8e8ea;
+         font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 22px 80px; }
+  h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 10px; letter-spacing: -0.02em; }
+  .tag { color: #a5a5ae; font-size: 1.06rem; margin: 0 0 30px; }
+  h2 { font-size: 1.16rem; margin: 44px 0 12px; letter-spacing: -0.01em; }
+  h3 { font-size: 1rem; margin: 26px 0 8px; color: #cfcfd6; }
+  p, li { color: #c8c8d0; }
+  a { color: #7fb2ff; }
+  code { background: #1a1a1e; padding: 2px 6px; border-radius: 5px; font-size: 0.9em; }
+  .cta { display: inline-block; margin: 6px 10px 6px 0; padding: 11px 18px; border-radius: 10px;
+         background: #f2f2f4; color: #0b0b0c; font-weight: 600; text-decoration: none; }
+  .cta.secondary { background: #1e1e23; color: #e8e8ea; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 0.94rem; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #232329; vertical-align: top; }
+  th { color: #9a9aa4; font-weight: 600; }
+  .note { border-left: 3px solid #2e2e36; padding: 2px 0 2px 16px; color: #a5a5ae; margin: 22px 0; }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid #1e1e23; color: #83838d; font-size: 0.9rem; }
+
+/* --- FAQ page ------------------------------------------------------------ */
+
+/* Each question is its own block with a visible heading, because that is what a
+   search engine lifts into a result and what an AI cites. The wording of these
+   headings deliberately matches how the question gets asked, not how the project
+   would describe itself. */
+.faq { margin: 30px 0 0; }
+.faq h2 { font-size: 1.1rem; margin: 34px 0 10px; color: #f0f0f4; }
+.faq p:first-of-type { margin-top: 0; }
+
+/* The one-line verdict under a question. Someone skimming should be able to read
+   only these and still get the right answer. */
+.verdict { color: #f0f0f4; font-weight: 600; }
+
+.breadcrumb { font-size: 0.9rem; color: #83838d; margin: 0 0 26px; }
+.breadcrumb a { color: #83838d; }
+
+/* Non-affiliation notice. Sits at the top of any page that names another product,
+   so the disclaimer is read before the content rather than after it. */
+.disclaimer { border: 1px solid #232329; border-radius: 10px; padding: 14px 16px;
+              margin: 0 0 30px; color: #9a9aa4; font-size: 0.9rem; }
+
+pre { background: #141418; border: 1px solid #232329; border-radius: 8px;
+      padding: 14px 16px; overflow-x: auto; font-size: 0.86rem; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+

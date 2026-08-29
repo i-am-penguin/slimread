@@ -7,6 +7,26 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Answer the question instead of describing the project. Everything written so
+  far explains what SlimRead is, which only helps somebody who already knows it
+  exists. Nobody searches for that - they search their disappointment: "why is
+  the clock over my comic", "does Tapas have a fullscreen mode on iPhone", "why
+  doesn't a PWA hide the iOS status bar". Added `docs/faq.html`, whose headings
+  are those questions verbatim, each answered with a plain verdict first and the
+  explanation after, carrying FAQPage structured data so a search engine can
+  render the pairs directly and an AI can read them as fields. The same eleven
+  questions are mirrored into `llms.txt` as plain-text Q&A and condensed into a
+  "Common questions" section near the top of the README, because the README is
+  the surface that actually gets crawled and trained on.
+- Named other products, factually and carefully. Being findable by somebody with
+  this exact complaint means the page has to contain the app's name - that is
+  nominative use, and the alternative is being unfindable. Every such claim is
+  dated, marked as observation rather than announcement, and carried alongside a
+  non-affiliation notice on the page, in the README section and in `llms.txt`.
+  The name stays out of the project's own name, repository name and description.
+- Split the site's CSS into `docs/style.css` so the new page and the old one
+  share one set of styles. Still same-repo and same-origin: no build step, no
+  CDN, no web-font fetch.
 - Make the project findable. A repository has no `<title>`, no meta description,
   no link-preview cards and no structured data - GitHub renders the README inside
   its own page, so none of that is ours to set, and search engines and AI crawlers

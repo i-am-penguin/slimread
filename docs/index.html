@@ -53,31 +53,9 @@
 }
 </script>
 
-<!-- Styles are inline and self-contained on purpose: no build step, no CDN, no
-     font fetch, so the page cannot break from something outside the repository.
-     Dark by default because it is a page about reading comics in the dark. -->
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: #0b0b0c; color: #e8e8ea;
-         font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 22px 80px; }
-  h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 10px; letter-spacing: -0.02em; }
-  .tag { color: #a5a5ae; font-size: 1.06rem; margin: 0 0 30px; }
-  h2 { font-size: 1.16rem; margin: 44px 0 12px; letter-spacing: -0.01em; }
-  h3 { font-size: 1rem; margin: 26px 0 8px; color: #cfcfd6; }
-  p, li { color: #c8c8d0; }
-  a { color: #7fb2ff; }
-  code { background: #1a1a1e; padding: 2px 6px; border-radius: 5px; font-size: 0.9em; }
-  .cta { display: inline-block; margin: 6px 10px 6px 0; padding: 11px 18px; border-radius: 10px;
-         background: #f2f2f4; color: #0b0b0c; font-weight: 600; text-decoration: none; }
-  .cta.secondary { background: #1e1e23; color: #e8e8ea; }
-  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 0.94rem; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #232329; vertical-align: top; }
-  th { color: #9a9aa4; font-weight: 600; }
-  .note { border-left: 3px solid #2e2e36; padding: 2px 0 2px 16px; color: #a5a5ae; margin: 22px 0; }
-  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid #1e1e23; color: #83838d; font-size: 0.9rem; }
-</style>
+<!-- Shared stylesheet, same repository and same origin. No build step, no CDN,
+     no web-font fetch, so nothing outside this repo can break the page. -->
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
@@ -89,6 +67,7 @@ artwork.</p>
 
 <p>
   <a class="cta" href="https://github.com/llllllllllllllppppppppppp/slimread">View on GitHub</a>
+  <a class="cta secondary" href="faq.html">Why is the status bar over my comic?</a>
   <a class="cta secondary" href="https://github.com/llllllllllllllppppppppppp/slimread/releases">Releases</a>
 </p>
 
@@ -108,6 +87,10 @@ Screen web apps and Guided Access do not help:</p>
 <p>A native app has no such restriction. A view controller returning <code>true</code> from
 <code>prefersStatusBarHidden</code> hides it in every orientation. SlimRead is that one change,
 built from the outside: an ordinary WebKit browser that does not draw system UI over the page.</p>
+
+<p>The longer version, question by question:
+<a href="faq.html">why the status bar sits over your comic, and everything that does not fix
+it</a>.</p>
 
 <h2>What it does</h2>
 <ul>
@@ -150,6 +133,7 @@ illegal one, you teach your own audience to leave.</strong></p>
   MIT licensed. Not legal advice, and not affiliated with or endorsed by any content platform.
   All trademarks and content belong to their respective owners.
   <br><a href="https://github.com/llllllllllllllppppppppppp/slimread">github.com/llllllllllllllppppppppppp/slimread</a>
+  &middot; <a href="faq.html">FAQ</a>
   &middot; <a href="llms.txt">llms.txt</a>
 </footer>
 
