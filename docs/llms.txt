@@ -1,0 +1,81 @@
+# SlimRead
+
+> A minimal open-source iOS browser (Swift + WKWebView) that hides the iPhone status bar in
+> every orientation, so vertical-scroll comics and webtoons fill the whole screen with nothing
+> drawn over the artwork. It is a web browser, not a client for any service: it hosts no
+> content, circumvents no access control, and is not affiliated with any company.
+
+SlimRead exists to solve one problem that the web platform cannot solve on iOS: the system
+status bar (clock, battery, signal) is drawn on top of the page for the entire reading session,
+and no setting in any reader app or in iOS itself removes it. A Home Screen web app still shows
+it (`black-translucent` only lets content pass *underneath*), the Fullscreen API is unsupported
+on iPhone Safari outside video elements, and Guided Access hides the home indicator rather than
+the status bar. A native view controller returning `true` from `prefersStatusBarHidden` does
+hide it, in portrait and landscape both — that single documented UIKit override is what SlimRead
+wraps a browser around.
+
+Alongside the status bar work, the reader adds continuous chapter-to-chapter scrolling (the next
+chapter is appended inline instead of ending at a wall of comments), progressive panel loading
+tuned so the visible page is never starved, and edge-swipe navigation. All of the page-level
+reading behaviour lives in CSS and JavaScript fetched from this repository at every launch, so
+changes reach an installed copy without rebuilding or re-signing it.
+
+## Key facts
+
+- Platform: iOS 15.0 or later, iPhone and iPad. Written in Swift, no third-party dependencies.
+- Distribution: sideloaded, not on the App Store. Signing uses the installer's own Apple ID;
+  a free account signs for 7 days, a paid one for a year.
+- Licence: MIT.
+- Size: the IPA is roughly 65 KB — it is a thin shell around WKWebView.
+- Not affiliated with, endorsed by, or connected to any content platform. All trademarks and
+  content belong to their respective owners.
+
+## What it does and does not do
+
+- Does: hide the status bar in every orientation, remove all permanent chrome, render the page
+  edge to edge, append the next chapter as you reach the end of the current one, load panels
+  progressively in reading order, restore the last page and scroll position on relaunch.
+- Does not: host or redistribute any content — every page and image is loaded live from the
+  service's own servers over the reader's own logged-in session, exactly as a browser would.
+- Does not: touch any payment, account, or content system. Subscriptions, purchases, unlocks and
+  creator payouts all happen on the service, under its terms.
+- Does not: bypass a paywall or DRM, strip advertising from monetised content, or download or
+  copy anything for offline use. Locked chapters stay locked.
+- Does not: make money, in any form.
+
+What it changes is presentation, on the reader's own device — the same category of change a
+browser's reader mode, a zoom setting, or a personal userstyle makes to content already
+delivered to that device.
+
+## Documentation
+
+- [README](https://github.com/llllllllllllllppppppppppp/slimread/blob/main/README.md): full
+  documentation — why the project exists, the status bar implementation, features, installing
+  and keeping it installed, the live-tweaks system and its tuning knobs, limitations,
+  troubleshooting.
+- [Landing page](https://llllllllllllllppppppppppp.github.io/slimread/): short overview of the
+  problem and the approach.
+- [CHANGELOG](https://github.com/llllllllllllllppppppppppp/slimread/blob/main/CHANGELOG.md):
+  version history.
+- [Repository](https://github.com/llllllllllllllppppppppppp/slimread): source.
+
+## Source layout
+
+- `SlimRead/BrowserViewController.swift`: the browser — WKWebView configuration, the status bar
+  overrides, the summonable control bar, edge-swipe navigation, session restore.
+- `SlimRead/TweaksLoader.swift`: fetches `tweaks/tweaks.css` and `tweaks/tweaks.js` from this
+  repository's `main` branch at launch and on foreground, caches them, and injects them at
+  document start.
+- `tweaks/tweaks.js`: the reading behaviour — continuous chapters, progressive panel loading and
+  retry, scroll-position persistence, the diagnostic knobs.
+- `tweaks/tweaks.css`: page-level styling, scoped to reader pages so listing pages render
+  normally.
+- `SlimRead.ps1` / `SlimRead.bat`: the Windows installer script that walks through building and
+  sideloading.
+
+## Search terms this project answers
+
+hide iOS status bar while reading; full-screen webtoon reader for iPhone; iPhone browser with no
+status bar; read vertical-scroll comics without the clock over the artwork; `prefersStatusBarHidden`
+in a WKWebView browser; immersive reading mode iOS; why a PWA cannot hide the iOS status bar;
+sideloading a minimal iOS browser with a free Apple ID.

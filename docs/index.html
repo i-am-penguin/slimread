@@ -1,0 +1,158 @@
+<!doctype html>
+<!-- ===========================================================================
+     SlimRead landing page - served by GitHub Pages from /docs on main.
+
+     Why this file exists when there is already a README: a README is rendered
+     inside github.com's own page, so it cannot set a <title>, a meta
+     description, Open Graph cards, or structured data. Search engines and AI
+     crawlers read those, and a repository has none of them. This page carries
+     them. The content deliberately mirrors the README rather than adding to it -
+     if the two ever disagree, the README is the source of truth.
+
+     To publish: Settings -> Pages -> Deploy from a branch -> main -> /docs.
+     =========================================================================== -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- The search-result snippet. Title and description are what a person actually
+     reads in a results list, so they lead with the problem ("no status bar",
+     "full screen") rather than the project name, which nobody searches for. -->
+<title>SlimRead — full-screen iOS browser for vertical-scroll comics, no status bar</title>
+<meta name="description" content="A minimal open-source iOS browser that hides the status bar in every orientation, so vertical-scroll comics and webtoons fill the whole screen. Sideloaded, MIT licensed, hosts no content.">
+
+<link rel="canonical" href="https://llllllllllllllppppppppppp.github.io/slimread/">
+
+<!-- Link previews in Discord, Slack, iMessage, Reddit and X. Without these a
+     shared link renders as a bare URL. -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="SlimRead — full-screen iOS browser for vertical-scroll comics">
+<meta property="og:description" content="Hides the iOS status bar while reading, so the artwork is not covered. Open source, MIT, sideloaded. A browser, not a client.">
+<meta property="og:url" content="https://llllllllllllllppppppppppp.github.io/slimread/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SlimRead — full-screen iOS browser for vertical-scroll comics">
+<meta name="twitter:description" content="Hides the iOS status bar while reading, so the artwork is not covered. Open source, MIT, sideloaded.">
+
+<!-- Structured data. Lets a crawler read the licence, platform, price and
+     repository as fields instead of inferring them from prose. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "SlimRead",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "iOS 15.0 or later",
+  "url": "https://llllllllllllllppppppppppp.github.io/slimread/",
+  "codeRepository": "https://github.com/llllllllllllllppppppppppp/slimread",
+  "programmingLanguage": ["Swift", "JavaScript"],
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "description": "An open-source iOS browser that hides the system status bar in every orientation, built for reading vertical-scroll comics and webtoons without system UI covering the artwork. It hosts no content and circumvents no access controls."
+}
+</script>
+
+<!-- Styles are inline and self-contained on purpose: no build step, no CDN, no
+     font fetch, so the page cannot break from something outside the repository.
+     Dark by default because it is a page about reading comics in the dark. -->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0b0c; color: #e8e8ea;
+         font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 22px 80px; }
+  h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 10px; letter-spacing: -0.02em; }
+  .tag { color: #a5a5ae; font-size: 1.06rem; margin: 0 0 30px; }
+  h2 { font-size: 1.16rem; margin: 44px 0 12px; letter-spacing: -0.01em; }
+  h3 { font-size: 1rem; margin: 26px 0 8px; color: #cfcfd6; }
+  p, li { color: #c8c8d0; }
+  a { color: #7fb2ff; }
+  code { background: #1a1a1e; padding: 2px 6px; border-radius: 5px; font-size: 0.9em; }
+  .cta { display: inline-block; margin: 6px 10px 6px 0; padding: 11px 18px; border-radius: 10px;
+         background: #f2f2f4; color: #0b0b0c; font-weight: 600; text-decoration: none; }
+  .cta.secondary { background: #1e1e23; color: #e8e8ea; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 0.94rem; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #232329; vertical-align: top; }
+  th { color: #9a9aa4; font-weight: 600; }
+  .note { border-left: 3px solid #2e2e36; padding: 2px 0 2px 16px; color: #a5a5ae; margin: 22px 0; }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid #1e1e23; color: #83838d; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>SlimRead</h1>
+<p class="tag">A minimal, open-source iOS browser that hides the status bar in every orientation
+— so vertical-scroll comics and webtoons fill the entire screen, with nothing drawn over the
+artwork.</p>
+
+<p>
+  <a class="cta" href="https://github.com/llllllllllllllppppppppppp/slimread">View on GitHub</a>
+  <a class="cta secondary" href="https://github.com/llllllllllllllppppppppppp/slimread/releases">Releases</a>
+</p>
+
+<h2>The problem it solves</h2>
+<p>On iOS the system status bar — clock, battery, signal — is drawn on top of the page for the
+entire reading session. No setting removes it, in a reader app or in iOS itself. Safari, Home
+Screen web apps and Guided Access do not help:</p>
+
+<table>
+  <tr><th>Approach</th><th>Outcome</th></tr>
+  <tr><td>Home Screen web app (PWA)</td><td>Status bar still renders. <code>black-translucent</code> only lets content pass underneath; the clock and battery still draw on top.</td></tr>
+  <tr><td>Fullscreen API</td><td>Not supported on iPhone Safari outside video elements.</td></tr>
+  <tr><td>Guided Access</td><td>Hides the home indicator, not the status bar.</td></tr>
+  <tr><td>Rotating to landscape</td><td>Works, but portrait is the correct aspect ratio for vertical-scroll comics.</td></tr>
+</table>
+
+<p>A native app has no such restriction. A view controller returning <code>true</code> from
+<code>prefersStatusBarHidden</code> hides it in every orientation. SlimRead is that one change,
+built from the outside: an ordinary WebKit browser that does not draw system UI over the page.</p>
+
+<h2>What it does</h2>
+<ul>
+  <li><strong>No status bar, portrait or landscape.</strong> Documented UIKit API, no orientation spoofing.</li>
+  <li><strong>No permanent chrome.</strong> Nothing overlays the page while reading. Controls appear only when asked for.</li>
+  <li><strong>Edge to edge.</strong> Artwork fills the display, corner to corner.</li>
+  <li><strong>Continuous chapters.</strong> Reaching the end of one appends the next inline, so reading does not stop at a wall of comments and recommendations.</li>
+  <li><strong>Progressive panel loading</strong>, tuned so the visible page is never starved by everything below it loading at once.</li>
+  <li><strong>Live tweaks.</strong> Layout and reading behaviour come from CSS and JS fetched from the repository at launch, so changes ship without rebuilding or re-signing.</li>
+</ul>
+
+<h2>What it is not</h2>
+<p>SlimRead is a web browser. It is not a client for any service, not a replacement for any
+official app, and not affiliated with, endorsed by, or connected to any company.</p>
+<ul>
+  <li>It <strong>hosts and redistributes nothing.</strong> Every page and image is loaded live from the service's own servers, over your own logged-in session, exactly as a browser would.</li>
+  <li>It <strong>touches no payment, account or content system.</strong> Subscriptions, purchases and creator payouts happen on the service, under its terms.</li>
+  <li>It <strong>circumvents nothing.</strong> No paywall or DRM bypass, no ad-stripping of monetised content, no downloading or offline copying. Locked chapters stay locked.</li>
+  <li>It <strong>makes no money.</strong> No monetisation of any kind.</li>
+</ul>
+<p>What it changes is presentation, on the reader's own device — the same category of thing a
+browser's reader mode, zoom, or a personal userstyle does with content already delivered to
+that device.</p>
+
+<h2>Installing</h2>
+<p>iOS 15 or later. SlimRead is not on the App Store and is installed by sideloading, which
+requires signing with your own Apple ID — nobody can hand you a ready-to-run copy. The
+repository includes a script that walks through it.</p>
+<p class="note">Apps signed with a free Apple ID stop opening after seven days. The README
+covers every way around that, including the free ones that need no computer.</p>
+
+<h2>Why it is public</h2>
+<p>The unauthorised copies of this work are, today, easier and more pleasant to read than the
+paid original — better layout, nothing covering the art, no friction. SlimRead exists because
+one reader would rather patch around a single unmet request than switch sides. The lesson for
+anyone shipping a reading product: <strong>when the paid, legal path is worse than the free,
+illegal one, you teach your own audience to leave.</strong></p>
+
+<footer>
+  MIT licensed. Not legal advice, and not affiliated with or endorsed by any content platform.
+  All trademarks and content belong to their respective owners.
+  <br><a href="https://github.com/llllllllllllllppppppppppp/slimread">github.com/llllllllllllllppppppppppp/slimread</a>
+  &middot; <a href="llms.txt">llms.txt</a>
+</footer>
+
+</div>
+</body>
+</html>

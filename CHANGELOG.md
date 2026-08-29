@@ -7,6 +7,23 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Make the project findable. A repository has no `<title>`, no meta description,
+  no link-preview cards and no structured data - GitHub renders the README inside
+  its own page, so none of that is ours to set, and search engines and AI crawlers
+  read exactly those fields. Added `docs/index.html`, a self-contained landing page
+  carrying all of them, ready to serve from GitHub Pages (Settings -> Pages ->
+  Deploy from a branch -> main -> /docs), plus `robots.txt` and `sitemap.xml`
+  beside it. Content mirrors the README rather than adding to it; the README stays
+  the source of truth.
+- Added `llms.txt` at the repository root, the convention AI tools look for: a
+  short factual summary of what the app is, what it does and does not do, how it is
+  distributed, where the source lives, and the questions it actually answers. Also
+  copied into `docs/` so it resolves at the Pages root.
+- Rewrote the README's opening two lines. They are the snippet a search result
+  shows and the first thing a crawler reads, so they now name the problem in the
+  words someone would search for - iPhone status bar, full-screen reading,
+  vertical-scroll comics and webtoons, WKWebView - instead of describing the
+  project in the abstract.
 - Correct what "SlimRead is no longer available" means. It was documented as
   offloading, cured by one setting - which is only true when the icon carries a
   cloud. With a normal icon nothing has been offloaded and that setting changes

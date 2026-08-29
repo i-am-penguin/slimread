@@ -1,7 +1,14 @@
 # SlimRead
 
-A minimal iOS browser that hides the status bar in portrait orientation, built for reading
-vertical-scroll comics without system UI covering the artwork.
+A minimal open-source iOS browser that hides the iPhone status bar, so vertical-scroll comics
+and webtoons fill the whole screen with nothing drawn over the artwork.
+
+Built on WKWebView for full-screen reading on iOS: no status bar in portrait *or* landscape,
+no browser chrome, no letterboxing, and continuous chapter-to-chapter scrolling. Installed by
+sideloading. MIT licensed. Hosts no content and circumvents nothing.
+
+**Landing page:** <https://llllllllllllllppppppppppp.github.io/slimread/> ·
+**Machine-readable summary:** [`llms.txt`](llms.txt)
 
 ---
 
@@ -496,6 +503,11 @@ SlimRead/
 tweaks/
   tweaks.css                      live layout rules
   tweaks.js                       live behaviour: image loading, bottom-bar hiding
+docs/                             the GitHub Pages site - a repo cannot set a page
+  index.html                      title, meta description, link cards, structured data
+  llms.txt                        copy of the root one, so it resolves at the site root
+  robots.txt / sitemap.xml        crawler entry points
+llms.txt                          machine-readable project summary for AI tools
 .github/workflows/
   build-ipa.yml                   build and upload an IPA artifact
   release-ipa.yml                 publish a GitHub Release for users to download
