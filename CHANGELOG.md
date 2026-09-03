@@ -7,6 +7,12 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Removed `Ping-IndexNow.ps1` and its `.bat` wrapper. IndexNow submission is a
+  plain GET request, so the whole thing collapses to two URLs pasted into a
+  browser - roughly 120 lines of script, a wrapper, and a run-it-from-where
+  problem, all in service of something that needed neither. The two URLs are in
+  the README instead, with what a 403 and a 422 mean. The key file under `docs/`
+  stays: it is the ownership proof, not part of the script.
 - Added `Ping-IndexNow.ps1` and its key file under `docs/`, so a docs change can tell
   Bing, DuckDuckGo and Yandex to re-crawl immediately instead of waiting for them to
   come round. Chosen because it is the only submission route that needs no account -

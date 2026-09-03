@@ -554,16 +554,23 @@ workflows in `.github/workflows/` need no edit; they use the repository they run
 <!-- Only relevant to pages, not to the app. tweaks/ reaches the phone directly and is not
      something a search engine indexes, so there is nothing to ping after a tweaks push. -->
 
-After publishing a change under `docs/`, **double-click `Ping IndexNow.bat`** — same as every
-other script here, no command line needed. The window stays open afterwards so you can read
-what happened.
+After publishing a change under `docs/`, paste each of these into a browser. That is the whole
+mechanism — IndexNow is a plain GET request, so there is nothing to install and no script to
+run:
 
-It asks Bing, DuckDuckGo and Yandex to re-crawl immediately rather than waiting for their own
-schedule. No account is needed — IndexNow proves ownership with a key file
-(`docs/c074d34cf0890a1e22bbd2db959f0fc5.txt`) whose name and contents match the key in the
-script. The script checks that the file is actually published before submitting anything, so a
-push that has not finished deploying fails with a readable message instead of a silent
-rejection.
+```
+https://api.indexnow.org/indexnow?url=https%3A%2F%2Fi-am-penguin.github.io%2Fslimread%2F&key=c074d34cf0890a1e22bbd2db959f0fc5&keyLocation=https%3A%2F%2Fi-am-penguin.github.io%2Fslimread%2Fc074d34cf0890a1e22bbd2db959f0fc5.txt
+```
+
+```
+https://api.indexnow.org/indexnow?url=https%3A%2F%2Fi-am-penguin.github.io%2Fslimread%2Ffaq.html&key=c074d34cf0890a1e22bbd2db959f0fc5&keyLocation=https%3A%2F%2Fi-am-penguin.github.io%2Fslimread%2Fc074d34cf0890a1e22bbd2db959f0fc5.txt
+```
+
+A blank page with status 200 or 202 means accepted. This asks Bing, DuckDuckGo and Yandex to
+re-crawl immediately rather than waiting for their own schedule. No account is needed —
+ownership is proved by `docs/c074d34cf0890a1e22bbd2db959f0fc5.txt`, whose name and contents are
+both the key. If it comes back 403 the key file is not published yet; 422 means the submitted
+URL is not underneath the key file's directory.
 
 **Google is not covered.** Google trialled IndexNow and does not use it, so Google discovery
 still depends on Search Console and on ordinary crawling. There is no no-account equivalent.
@@ -577,8 +584,8 @@ IndexNow prove you own the site, and both are re-checked periodically rather tha
 Removing either un-verifies the site silently — nothing breaks visibly, submissions just stop
 being accepted.
 
-If the key is ever rotated, change it in the script and rename the file to match on both sides,
-then push before running it again — a key that disagrees with the hosted file is rejected.
+If the key is ever rotated, rename the file and change the key in both URLs above to match —
+a key that disagrees with the hosted file is rejected.
 
 ### Building on macOS
 
@@ -605,8 +612,6 @@ identifier from `com.example.slimread`, and run.
 SlimRead.bat / SlimRead.ps1       what a user runs - downloads and installs the app
 Publish Update.bat                what the maintainer runs - push and release
 Publish-Update.ps1
-Ping IndexNow.bat                 ask Bing/DDG/Yandex to re-crawl after a docs/ change
-Ping-IndexNow.ps1
 SlimRead/
   AppDelegate.swift               window and root view controller
   BrowserViewController.swift     web view, status bar overrides, gestures, tweak injection
@@ -625,7 +630,7 @@ docs/                             the GitHub Pages site - a repo cannot set a pa
   og-card.png                     link preview image; favicon-32/180.png the tab icon
   llms.txt                        copy of the root one, so it resolves at the site root
   robots.txt / sitemap.xml        crawler entry points
-  <key>.txt                       IndexNow ownership key - see Ping-IndexNow.ps1
+  <key>.txt                       IndexNow ownership key - DO NOT DELETE
   google*.html                    Search Console proof of ownership - DO NOT DELETE
 llms.txt                          machine-readable project summary for AI tools
 .github/workflows/
