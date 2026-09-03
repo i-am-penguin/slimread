@@ -7,6 +7,16 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Give the site a link preview and a tab icon. Both pages declared
+  `twitter:card: summary_large_image`, which promises a large preview picture,
+  and neither carried an `og:image` - so every link shared to Reddit, Discord,
+  iMessage or X rendered as a bare card with no picture, on exactly the channels
+  the project depends on to spread. Added `docs/og-card.png`, a 1200x630 card
+  built from the app icon and its own sampled palette so the tile and the card
+  read as one object, wired into both pages as `og:image` and `twitter:image`
+  with absolute URLs - crawlers do not resolve relative ones - plus width, height
+  and alt text. The same icon supplies `favicon-32.png` and `favicon-180.png`,
+  without which the Pages site shows the browser's blank-page glyph.
 
 ## v1.27 - 2026-08-29
 - Moved every reference from the old GitHub username to `i-am-penguin`: `baseURL`
