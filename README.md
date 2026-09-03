@@ -570,6 +570,15 @@ rejection.
 **Google is not covered.** Google trialled IndexNow and does not use it, so Google discovery
 still depends on Search Console and on ordinary crawling. There is no no-account equivalent.
 
+<!-- The two files under docs/ that prove ownership are load-bearing, not leftovers. Both are
+     re-checked by the service that issued them, so deleting either silently un-verifies the
+     site and the submissions stop working with no error anywhere. -->
+
+**Do not delete `docs/google*.html` or `docs/<key>.txt`.** They are how Search Console and
+IndexNow prove you own the site, and both are re-checked periodically rather than only once.
+Removing either un-verifies the site silently — nothing breaks visibly, submissions just stop
+being accepted.
+
 If the key is ever rotated, change it in the script and rename the file to match on both sides,
 then push before running it again — a key that disagrees with the hosted file is rejected.
 
@@ -618,6 +627,7 @@ docs/                             the GitHub Pages site - a repo cannot set a pa
   llms.txt                        copy of the root one, so it resolves at the site root
   robots.txt / sitemap.xml        crawler entry points
   <key>.txt                       IndexNow ownership key - see Ping-IndexNow.ps1
+  google*.html                    Search Console proof of ownership - DO NOT DELETE
 llms.txt                          machine-readable project summary for AI tools
 .github/workflows/
   build-ipa.yml                   build and upload an IPA artifact
