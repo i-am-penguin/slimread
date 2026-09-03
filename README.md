@@ -549,6 +549,30 @@ Then update the references: `$Owner` in `SlimRead.ps1` and `Publish-Update.ps1`,
 `robots.txt`). The GitHub Pages address changes too — it is derived from the username. The
 workflows in `.github/workflows/` need no edit; they use the repository they run in.
 
+### Telling search engines about a docs/ change
+
+<!-- Only relevant to pages, not to the app. tweaks/ reaches the phone directly and is not
+     something a search engine indexes, so there is nothing to ping after a tweaks push. -->
+
+After publishing a change under `docs/`, run:
+
+```
+powershell -ExecutionPolicy Bypass -File .\Ping-IndexNow.ps1
+```
+
+It asks Bing, DuckDuckGo and Yandex to re-crawl immediately rather than waiting for their own
+schedule. No account is needed — IndexNow proves ownership with a key file
+(`docs/c074d34cf0890a1e22bbd2db959f0fc5.txt`) whose name and contents match the key in the
+script. The script checks that the file is actually published before submitting anything, so a
+push that has not finished deploying fails with a readable message instead of a silent
+rejection.
+
+**Google is not covered.** Google trialled IndexNow and does not use it, so Google discovery
+still depends on Search Console and on ordinary crawling. There is no no-account equivalent.
+
+If the key is ever rotated, change it in the script and rename the file to match on both sides,
+then push before running it again — a key that disagrees with the hosted file is rejected.
+
 ### Building on macOS
 
 Open `SlimRead.xcodeproj`, set your team under **Signing & Capabilities**, change the bundle
@@ -574,6 +598,7 @@ identifier from `com.example.slimread`, and run.
 SlimRead.bat / SlimRead.ps1       what a user runs - downloads and installs the app
 Publish Update.bat                what the maintainer runs - push and release
 Publish-Update.ps1
+Ping-IndexNow.ps1                 ask Bing/DDG/Yandex to re-crawl after a docs/ change
 SlimRead/
   AppDelegate.swift               window and root view controller
   BrowserViewController.swift     web view, status bar overrides, gestures, tweak injection
@@ -587,8 +612,12 @@ tweaks/
   tweaks.js                       live behaviour: image loading, bottom-bar hiding
 docs/                             the GitHub Pages site - a repo cannot set a page
   index.html                      title, meta description, link cards, structured data
+  faq.html                        the questions people actually search, answered
+  style.css                       shared styles for both pages
+  og-card.png                     link preview image; favicon-32/180.png the tab icon
   llms.txt                        copy of the root one, so it resolves at the site root
   robots.txt / sitemap.xml        crawler entry points
+  <key>.txt                       IndexNow ownership key - see Ping-IndexNow.ps1
 llms.txt                          machine-readable project summary for AI tools
 .github/workflows/
   build-ipa.yml                   build and upload an IPA artifact

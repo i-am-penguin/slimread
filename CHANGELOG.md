@@ -7,6 +7,15 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Added `Ping-IndexNow.ps1` and its key file under `docs/`, so a docs change can tell
+  Bing, DuckDuckGo and Yandex to re-crawl immediately instead of waiting for them to
+  come round. Chosen because it is the only submission route that needs no account -
+  Search Console and Bing Webmaster Tools both verify ownership through a signed-in
+  session, so they cannot be automated from here and stay manual. Google is explicitly
+  not covered: it trialled IndexNow and does not use it, so Google discovery still
+  depends on Search Console and ordinary crawling, and the docs say so rather than
+  implying the ping is universal. The script verifies the hosted key matches before
+  submitting anything, because the endpoint rejects a mismatch without saying why.
 - Give the site a link preview and a tab icon. Both pages declared
   `twitter:card: summary_large_image`, which promises a large preview picture,
   and neither carried an `og:image` - so every link shared to Reddit, Discord,
