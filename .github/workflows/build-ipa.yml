@@ -14,6 +14,12 @@ on:
     # minute rate, so do not spend one re-compiling unchanged native code.
     paths-ignore:
       - 'tweaks/**'
+      # The GitHub Pages site. Nothing under here is compiled into the app, so a
+      # change to it has no build to produce. Added after the fact: docs/ did not
+      # exist when this list was written, so every page edit was spending a macOS
+      # minute at 10x rate to rebuild native code that had not changed.
+      - 'docs/**'
+      - 'llms.txt'
       - '**/*.md'
       - '*.ps1'
       - '*.bat'
