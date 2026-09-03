@@ -554,11 +554,9 @@ workflows in `.github/workflows/` need no edit; they use the repository they run
 <!-- Only relevant to pages, not to the app. tweaks/ reaches the phone directly and is not
      something a search engine indexes, so there is nothing to ping after a tweaks push. -->
 
-After publishing a change under `docs/`, run:
-
-```
-powershell -ExecutionPolicy Bypass -File .\Ping-IndexNow.ps1
-```
+After publishing a change under `docs/`, **double-click `Ping IndexNow.bat`** — same as every
+other script here, no command line needed. The window stays open afterwards so you can read
+what happened.
 
 It asks Bing, DuckDuckGo and Yandex to re-crawl immediately rather than waiting for their own
 schedule. No account is needed — IndexNow proves ownership with a key file
@@ -607,7 +605,8 @@ identifier from `com.example.slimread`, and run.
 SlimRead.bat / SlimRead.ps1       what a user runs - downloads and installs the app
 Publish Update.bat                what the maintainer runs - push and release
 Publish-Update.ps1
-Ping-IndexNow.ps1                 ask Bing/DDG/Yandex to re-crawl after a docs/ change
+Ping IndexNow.bat                 ask Bing/DDG/Yandex to re-crawl after a docs/ change
+Ping-IndexNow.ps1
 SlimRead/
   AppDelegate.swift               window and root view controller
   BrowserViewController.swift     web view, status bar overrides, gestures, tweak injection
