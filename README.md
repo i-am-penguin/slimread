@@ -9,6 +9,7 @@ sideloading. MIT licensed. Hosts no content and circumvents nothing.
 
 **Landing page:** <https://i-am-penguin.github.io/slimread/> ·
 **FAQ:** [Why is the status bar over my comic?](https://i-am-penguin.github.io/slimread/faq.html) ·
+**Privacy:** [What it stores, and what leaves your device](https://i-am-penguin.github.io/slimread/privacy.html) ·
 **Machine-readable summary:** [`llms.txt`](llms.txt)
 
 ---
@@ -626,6 +627,7 @@ tweaks/
 docs/                             the GitHub Pages site - a repo cannot set a page
   index.html                      title, meta description, link cards, structured data
   faq.html                        the questions people actually search, answered
+  privacy.html                    what is stored, what leaves the device, how to delete it
   style.css                       shared styles for both pages
   og-card.png                     link preview image; favicon-32/180.png the tab icon
   llms.txt                        copy of the root one, so it resolves at the site root

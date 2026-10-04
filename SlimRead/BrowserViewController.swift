@@ -219,6 +219,12 @@ final class BrowserViewController: UIViewController {
         // Invisible strip across the top - the notch / Dynamic Island sits inside it.
         topTapZone.translatesAutoresizingMaskIntoConstraints = false
         topTapZone.backgroundColor = .clear
+        // A clear, empty view is invisible to VoiceOver as well as to the eye, and this
+        // is the only way in to the controls - so without this the app has no reachable
+        // navigation at all for a screen-reader user.
+        topTapZone.isAccessibilityElement = true
+        topTapZone.accessibilityLabel = "Show controls"
+        topTapZone.accessibilityTraits = .button
         view.addSubview(topTapZone)
 
         controls.translatesAutoresizingMaskIntoConstraints = false

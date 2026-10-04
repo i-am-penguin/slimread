@@ -1,0 +1,138 @@
+<!doctype html>
+<!-- ===========================================================================
+     Privacy page.
+
+     Written from an audit of what the code actually does, not from a template.
+     Every key, host and store named below was read out of the source - if any of
+     them changes, this page is wrong and has to change with it:
+
+       native stores   the Key enums in BrowserViewController.swift and
+                       TweaksLoader.swift
+       page stores     the localStorage keys in tweaks/tweaks.js
+       hosts           homeURL and the search fallback in BrowserViewController,
+                       baseURL in TweaksLoader
+
+     The reason this page exists at all: the app browses a site you are logged in
+     to, caches a remote script and runs it on every page. That deserves a plain
+     account of what is kept and what leaves the device, even though the honest
+     answer is "almost nothing" - especially because the honest answer is that.
+     =========================================================================== -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Privacy — SlimRead collects nothing and has no server</title>
+<meta name="description" content="SlimRead has no account, no analytics, no telemetry and no backend. Everything it stores stays on your device. A plain list of exactly what is kept, where, and how to delete it.">
+
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="favicon-180.png">
+
+<link rel="canonical" href="https://i-am-penguin.github.io/slimread/privacy.html">
+<link rel="stylesheet" href="style.css">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Privacy — SlimRead collects nothing and has no server">
+<meta property="og:description" content="No account, no analytics, no telemetry, no backend. Everything stays on your device. Here is exactly what is stored and how to delete it.">
+<meta property="og:url" content="https://i-am-penguin.github.io/slimread/privacy.html">
+<meta property="og:image" content="https://i-am-penguin.github.io/slimread/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SlimRead - no status bar, just the artwork. Open-source iOS browser for vertical-scroll comics.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Privacy — SlimRead collects nothing and has no server">
+<meta name="twitter:description" content="No account, no analytics, no telemetry, no backend. Everything stays on your device.">
+<meta name="twitter:image" content="https://i-am-penguin.github.io/slimread/og-card.png">
+<meta name="twitter:image:alt" content="SlimRead - no status bar, just the artwork. Open-source iOS browser for vertical-scroll comics.">
+</head>
+<body>
+<div class="wrap">
+
+<p class="breadcrumb"><a href="./">SlimRead</a> &rsaquo; Privacy</p>
+
+<h1>Privacy</h1>
+<p class="tag">SlimRead has no account, no analytics, no telemetry, no advertising and no server
+of its own. There is nowhere for your data to go, because there is no &ldquo;us&rdquo; to send
+it to. This page lists exactly what is stored, where it lives, and how to remove it.</p>
+
+<div class="disclaimer">
+  Last reviewed 4 October 2026. This describes SlimRead itself — the browser. The websites you
+  visit <em>through</em> it have their own privacy practices, exactly as they would in Safari.
+  SlimRead does not change, intercept or report what those sites do.
+</div>
+
+<h2>What is collected</h2>
+<p><span class="verdict">Nothing.</span> No personal data is gathered, transmitted or shared.
+The project has no backend, no database, no account system, no analytics and no crash
+reporting. Nobody — including the author — can see that you installed it, what you read, or
+that you exist.</p>
+
+<h2>What is stored on your device</h2>
+<p>All of it stays on the phone. None of it is transmitted anywhere.</p>
+
+<table>
+  <tr><th>What</th><th>Why</th></tr>
+  <tr><td>Last page address</td><td>So reopening returns you to where you were reading</td></tr>
+  <tr><td>Scroll position per chapter</td><td>So you resume at the right point, not the top</td></tr>
+  <tr><td>Edge-to-edge layout preference</td><td>Remembers the setting you chose</td></tr>
+  <tr><td>Whether the first-run guide was shown</td><td>So it appears once rather than every launch</td></tr>
+  <tr><td>A cached copy of the reading script and stylesheet</td><td>So the app works offline and does not re-download them every launch</td></tr>
+  <tr><td>Last 30 chapter changes, and any diagnostic settings</td><td>So a reported bug can be investigated. Cleared with <code>?slimread=reset</code></td></tr>
+  <tr><td>Cookies for the sites you visit</td><td>So your login to the reading site survives, exactly as in any browser</td></tr>
+</table>
+
+<h2>What leaves the device</h2>
+<p>Only ordinary web requests, all of them ones you caused:</p>
+<ul>
+  <li><strong>The site you are reading</strong> — page and image requests, over your own logged-in session, exactly as a browser makes them.</li>
+  <li><strong>raw.githubusercontent.com</strong> — to fetch the reading script and stylesheet from this repository at launch. This is a plain file download; it carries no identifier and says nothing about you beyond what any file download reveals.</li>
+  <li><strong>duckduckgo.com</strong> — only if you type something into the address bar that is not a web address, in which case it is treated as a search.</li>
+</ul>
+<p>There are no other destinations. The reading script makes only same-origin requests to the
+site you are already on — no third-party endpoints, no beacons, no telemetry of any kind.</p>
+
+<h2>Third-party code</h2>
+<p><span class="verdict">There is none.</span> The app depends on no SDKs, frameworks or
+libraries beyond Apple's own. There is no advertising, attribution or analytics code anywhere
+in it. This website loads no fonts, scripts, trackers or resources from anyone else — every
+byte it serves comes from this repository.</p>
+
+<h2>Deleting everything</h2>
+<p><strong>Delete the app.</strong> That removes all of the above — stored preferences, cached
+script, reading position and cookies — in one step, because every one of them lives inside the
+app's own container. Nothing survives it, and there is no server-side copy to request the
+deletion of.</p>
+<p>To clear only the reading diagnostics while keeping everything else, open any page in the
+app with <code>?slimread=reset</code> on the end of the address.</p>
+
+<h2>Children</h2>
+<p>SlimRead collects no data from anyone, of any age, so there is nothing to obtain consent
+for. It is a browser; the sites viewed through it have their own policies and age rules.</p>
+
+<h2>Using SlimRead</h2>
+<p>SlimRead is free, open-source software released under the MIT licence, which includes its
+warranty disclaimer: it is provided &ldquo;as is&rdquo;, without warranty of any kind. Nothing
+is sold, so there is nothing to refund and no fees, hidden or otherwise.</p>
+<p>It is not affiliated with, endorsed by, or connected to Tapas, WEBTOON, Apple or any other
+company. It hosts no content, circumvents no access control, and makes no money. You are
+responsible for your own use of it, including complying with the terms of whichever sites you
+visit.</p>
+
+<h2>Changes and contact</h2>
+<p>If this page ever changes, the change is in the repository's commit history alongside the
+code it describes. Questions and corrections go to
+<a href="https://github.com/i-am-penguin/slimread/issues">GitHub issues</a>, which is the only
+contact channel — there is no mailing list, and the project sends no email.</p>
+
+<footer>
+  MIT licensed. Not legal advice, and not affiliated with or endorsed by any content platform.
+  All trademarks and content belong to their respective owners.
+  <br><a href="https://github.com/i-am-penguin/slimread">github.com/i-am-penguin/slimread</a>
+  &middot; <a href="./">Overview</a>
+  &middot; <a href="faq.html">FAQ</a>
+  &middot; <a href="llms.txt">llms.txt</a>
+</footer>
+
+</div>
+</body>
+</html>

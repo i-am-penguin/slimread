@@ -7,6 +7,21 @@ Keep the top heading as `## Unreleased` while working. The publish script rename
 it to the version number when a build is published.
 
 ## Unreleased
+- Labelled every control for VoiceOver. The seven buttons in the control bar are
+  SF Symbols, which carry no name a screen reader can use, so all of them
+  announced as unlabelled buttons. Worse, the only way to open the bar is an
+  invisible tap zone in the top-left corner - a clear, empty view, which is
+  invisible to VoiceOver as well as to the eye - so the app had no reachable
+  navigation at all without sight. Both tap zones are now accessibility elements
+  with labels and the button trait.
+- Added `docs/privacy.html`, written from an audit of what the code actually does
+  rather than from a template: every key, host and store named on it was read out
+  of the source. The short version is that there is no backend, no account, no
+  analytics, no telemetry, no third-party SDK and no advertising, every stored
+  item lives in the app's own container, the only outbound destinations are the
+  site being read, raw.githubusercontent.com for the tweak files, and DuckDuckGo
+  if an address-bar entry is not a URL - and deleting the app removes everything,
+  because there is no server-side copy to ask about.
 - Removed `Ping-IndexNow.ps1` and its `.bat` wrapper. IndexNow submission is a
   plain GET request, so the whole thing collapses to two URLs pasted into a
   browser - roughly 120 lines of script, a wrapper, and a run-it-from-where

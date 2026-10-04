@@ -20,16 +20,16 @@ final class ControlBarView: UIView {
     // MARK: - Subviews
 
     private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterialDark))
-    private let backButton = ControlBarView.makeButton("chevron.left")
-    private let forwardButton = ControlBarView.makeButton("chevron.right")
-    private let reloadButton = ControlBarView.makeButton("arrow.clockwise")
-    private let homeButton = ControlBarView.makeButton("house")
-    private let fullBleedButton = ControlBarView.makeButton("arrow.up.left.and.arrow.down.right")
-    private let guideButton = ControlBarView.makeButton("questionmark.circle")
+    private let backButton = ControlBarView.makeButton("chevron.left", "Back")
+    private let forwardButton = ControlBarView.makeButton("chevron.right", "Forward")
+    private let reloadButton = ControlBarView.makeButton("arrow.clockwise", "Reload page")
+    private let homeButton = ControlBarView.makeButton("house", "Home")
+    private let fullBleedButton = ControlBarView.makeButton("arrow.up.left.and.arrow.down.right", "Toggle edge-to-edge layout")
+    private let guideButton = ControlBarView.makeButton("questionmark.circle", "Show the guide")
 
     /// Manual next-chapter, for when the continuous scroll has not stitched the
     /// next one on yet - or cannot.
-    private let nextChapterButton = ControlBarView.makeButton("forward.end")
+    private let nextChapterButton = ControlBarView.makeButton("forward.end", "Next chapter")
 
     /// The empty strip above the controls - the notch / Dynamic Island area, once the
     /// bar is open. Tapping it closes the bar again.
@@ -112,6 +112,9 @@ final class ControlBarView: UIView {
 
         headerTapZone.translatesAutoresizingMaskIntoConstraints = false
         headerTapZone.backgroundColor = .clear
+        headerTapZone.isAccessibilityElement = true
+        headerTapZone.accessibilityLabel = "Hide controls"
+        headerTapZone.accessibilityTraits = .button
         addSubview(headerTapZone)
         headerTapZone.addGestureRecognizer(
             UITapGestureRecognizer(target: self, action: #selector(tapHeader))
@@ -191,11 +194,15 @@ final class ControlBarView: UIView {
 
     // MARK: - Helpers
 
-    private static func makeButton(_ systemName: String) -> UIButton {
+    /// `label` is what VoiceOver reads. An SF Symbol carries no name a screen reader
+    /// can use, so without it every one of these announces as an unlabelled button and
+    /// the bar is unusable without sight.
+    private static func makeButton(_ systemName: String, _ label: String) -> UIButton {
         let b = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
         b.setImage(UIImage(systemName: systemName, withConfiguration: config), for: .normal)
         b.tintColor = .white
+        b.accessibilityLabel = label
         b.widthAnchor.constraint(equalToConstant: 40).isActive = true
         b.heightAnchor.constraint(equalToConstant: 40).isActive = true
         return b
